@@ -446,34 +446,45 @@
       `).join("");
     }
 
-    async function cargarDatos() {
+    function cargarDatos() {
       document.getElementById("screen-error").classList.add("hidden");
       document.getElementById("screen-content").classList.add("hidden");
       document.getElementById("screen-loading").classList.remove("hidden");
 
-      try {
-        const res = await fetch(SCRIPT_URL + "?t=" + Date.now());
-        const json = await res.json();
-        if (!json.ok) throw new Error(json.error || "Error desconocido");
+      const old = document.getElementById("jsonp-script");
+      if (old) old.remove();
 
-        appData = json.data;
-        periodoActivo = appData.ultimo;
+      const cbName = "_hechizoCallback_" + Date.now();
+      window[cbName] = function(json) {
+        try {
+          if (!json.ok) throw new Error(json.error || "Error desconocido");
+          appData = json.data;
+          periodoActivo = appData.ultimo;
+          const fecha = new Date(appData.actualizadoEn);
+          document.getElementById("updated-label").textContent =
+            "Actualizado " + fecha.toLocaleString("es-AR", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
+          renderTabs();
+          mostrar(periodoActivo);
+          document.getElementById("screen-loading").classList.add("hidden");
+          document.getElementById("screen-content").classList.remove("hidden");
+        } catch (err) {
+          document.getElementById("screen-loading").classList.add("hidden");
+          document.getElementById("screen-error").classList.remove("hidden");
+          document.getElementById("error-msg").textContent = "No se pudo cargar: " + err.message;
+        }
+        delete window[cbName];
+      };
 
-        const fecha = new Date(appData.actualizadoEn);
-        document.getElementById("updated-label").textContent =
-          "Actualizado " + fecha.toLocaleString("es-AR", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
-
-        renderTabs();
-        mostrar(periodoActivo);
-
-        document.getElementById("screen-loading").classList.add("hidden");
-        document.getElementById("screen-content").classList.remove("hidden");
-
-      } catch (err) {
+      const script = document.createElement("script");
+      script.id = "jsonp-script";
+      script.onerror = function() {
         document.getElementById("screen-loading").classList.add("hidden");
         document.getElementById("screen-error").classList.remove("hidden");
-        document.getElementById("error-msg").textContent = "No se pudo cargar: " + err.message;
-      }
+        document.getElementById("error-msg").textContent = "No se pudo conectar con el servidor.";
+        delete window[cbName];
+      };
+      script.src = SCRIPT_URL + "?callback=" + cbName + "&t=" + Date.now();
+      document.head.appendChild(script);
     }
 
     cargarDatos();
