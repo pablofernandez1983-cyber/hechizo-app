@@ -225,14 +225,15 @@
             return;
           }
           accessToken = resp.access_token;
-          // Guardar token en sessionStorage para esta sesión
-          sessionStorage.setItem("hechizo_token", accessToken);
+          // Guardar token en localStorage para persistir entre sesiones
+          localStorage.setItem("hechizo_token", accessToken);
+          localStorage.setItem("hechizo_logged", "1");
           cargarDatos();
         },
       });
 
       // Si hay token guardado, intentar usarlo directamente
-      const savedToken = sessionStorage.getItem("hechizo_token");
+      const savedToken = localStorage.getItem("hechizo_token");
       if (savedToken) {
         accessToken = savedToken;
         cargarDatos();
@@ -242,11 +243,13 @@
     }
 
     function loginGoogle() {
-      tokenClient.requestAccessToken({ prompt: "consent" });
+      // Primera vez pide consent, después silencioso
+      const yaLogio = localStorage.getItem("hechizo_logged");
+      tokenClient.requestAccessToken({ prompt: yaLogio ? "" : "consent" });
     }
 
     function cerrarSesion() {
-      sessionStorage.removeItem("hechizo_token");
+      localStorage.removeItem("hechizo_token");
       accessToken = null;
       show("screen-login");
     }
@@ -263,7 +266,7 @@
 
         if (res.status === 401) {
           // Token expirado — pedir uno nuevo silenciosamente
-          sessionStorage.removeItem("hechizo_token");
+          localStorage.removeItem("hechizo_token");
           tokenClient.requestAccessToken({ prompt: "" });
           return;
         }
