@@ -234,19 +234,13 @@
         return;
       }
 
-      // Hora Argentina UTC-3
-      const ahora = new Date();
-      const tzOffset = -3 * 60;
-      const ahoraAR = new Date(ahora.getTime() + (ahora.getTimezoneOffset() + tzOffset * -1) * 60000);
-      // Corregido: usar offset correcto
-      const offsetMs = (-3) * 60 * 60 * 1000;
-      const ahoraARFixed = new Date(Date.now() + offsetMs + ahora.getTimezoneOffset() * 60000);
-
+      // Hora Argentina UTC-3 — forma simple y correcta
+      const ahoraAR = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
       const pad = n => String(n).padStart(2, "0");
       const toDateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 
-      const hoyStr  = toDateStr(ahoraARFixed);
-      const ayerStr = toDateStr(new Date(ahoraARFixed.getTime() - 86400000));
+      const hoyStr  = toDateStr(ahoraAR);
+      const ayerStr = toDateStr(new Date(ahoraAR.getTime() - 86400000));
 
       const acum = { [hoyStr]: {total:0, cant:0}, [ayerStr]: {total:0, cant:0} };
 
