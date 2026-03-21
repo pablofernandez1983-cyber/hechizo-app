@@ -53,6 +53,7 @@
     footer { padding:12px 20px; padding-bottom:calc(env(safe-area-inset-bottom,0px) + 12px); text-align:center; }
     .updated-label { font-size:11px; color:var(--muted); }
     .refresh-btn { margin-top:8px; padding:8px 20px; border-radius:20px; border:1px solid var(--border); background:transparent; color:var(--muted); font-size:12px; font-family:"DM Sans",sans-serif; cursor:pointer; }
+    .refresh-btn:disabled { opacity:0.5; cursor:not-allowed; }
     .state-screen { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:40px; }
     .spinner { width:32px; height:32px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg); } }
@@ -126,7 +127,8 @@
     </div>
     <footer>
       <div class="updated-label" id="updated-label"></div>
-      <button class="refresh-btn" onclick="cargarDatos()">↻ Actualizar</button>
+      <button class="refresh-btn" id="refresh-resultados-btn" onclick="triggearKnime()">↻ Refrescar resultados</button>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;" id="trigger-status"></div>
     </footer>
   </div>
 
@@ -136,6 +138,8 @@
     const SHEET_NAME       = "Hoja 1";
     const VENTAS_SHEET     = "Ventas_diarias";
     const VENTAS_URL       = "https://hechizo-ventas-service-production.up.railway.app/ventas";
+    const TRIGGER_RANGE    = "Trigger!A1";
+    const DRIVE_API        = `https://www.googleapis.com/drive/v3/files/${SHEET_ID}?fields=modifiedTime&key=${API_KEY}`;
 
     const LABELS = {
       "Ingresos":                   { label:"Ingresos",         tipo:"ingreso" },
@@ -187,9 +191,10 @@
             const rr = await fetch(VENTAS_URL + "?t=" + Date.now());
             const rj = await rr.json();
             if (rj.ok) {
-              // Railway devolvió los datos directamente, usarlos
               ventasData = rj;
               renderVentas();
+              // Asegurar que seguimos en solapa ventas
+              switchTab("ventas");
               return;
             }
           } catch(e) {
@@ -203,6 +208,7 @@
         if (!res.ok) throw new Error("Error " + res.status);
         const json = await res.json();
         procesarVentas(json.values);
+        switchTab("ventas");
       } catch(err) {
         document.getElementById("ventas-actualizado").textContent = "Error al cargar: " + err.message;
       } finally {
@@ -307,6 +313,90 @@
         "Datos al " + fecha.toLocaleString("es-AR", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
     }
 
+    async function leerVentasSheet() {
+      // Carga ventas desde el Sheet silenciosamente al abrir la app
+      try {
+        const range = encodeURIComponent(VENTAS_SHEET);
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&t=${Date.now()}`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (json.values) procesarVentas(json.values);
+      } catch(e) {
+        // silencioso — no mostrar error si falla al abrir
+      }
+    }
+
+    async function triggearKnime() {
+      const btn = document.getElementById("refresh-resultados-btn");
+      const status = document.getElementById("trigger-status");
+      btn.disabled = true;
+      btn.textContent = "Enviando señal...";
+      status.textContent = "";
+
+      try {
+        // Escribir PENDIENTE en el Sheet via Sheets API
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent("Trigger!A1")}?valueInputOption=RAW&key=${API_KEY}`;
+        // API Key no puede escribir — necesitamos otro approach
+        // Usamos el endpoint de Railway para escribir en el Sheet
+        const res = await fetch("https://hechizo-ventas-service-production.up.railway.app/trigger", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "PENDIENTE" })
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || "Error");
+
+        btn.textContent = "⏳ Esperando KNIME...";
+        status.textContent = "La PC procesará el pedido en los próximos 30 segundos";
+        esperarResultado();
+
+      } catch(err) {
+        btn.disabled = false;
+        btn.textContent = "↻ Refrescar resultados";
+        status.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function esperarResultado() {
+      const btn = document.getElementById("refresh-resultados-btn");
+      const status = document.getElementById("trigger-status");
+      let intentos = 0;
+      const maxIntentos = 40; // 40 * 15s = 10 minutos max
+
+      const poll = setInterval(async () => {
+        intentos++;
+        try {
+          const res = await fetch("https://hechizo-ventas-service-production.up.railway.app/trigger/status?t=" + Date.now());
+          const json = await res.json();
+          const estado = json.estado || "";
+
+          if (estado === "LISTO") {
+            clearInterval(poll);
+            status.textContent = "KNIME terminó — recargando datos...";
+            await cargarDatos();
+            btn.disabled = false;
+            btn.textContent = "↻ Refrescar resultados";
+            status.textContent = "Actualizado " + new Date().toLocaleString("es-AR", {hour:"2-digit", minute:"2-digit"});
+          } else if (estado === "ERROR") {
+            clearInterval(poll);
+            btn.disabled = false;
+            btn.textContent = "↻ Refrescar resultados";
+            status.textContent = "KNIME terminó con error";
+          } else if (intentos >= maxIntentos) {
+            clearInterval(poll);
+            btn.disabled = false;
+            btn.textContent = "↻ Refrescar resultados";
+            status.textContent = "Timeout — revisá la PC";
+          } else {
+            status.textContent = `Esperando KNIME... (${intentos * 15}s)`;
+          }
+        } catch(e) {
+          // silencioso
+        }
+      }, 15000);
+    }
+
     async function cargarDatos() {
       show("screen-loading");
       try {
@@ -362,9 +452,19 @@
       };
 
       periodoActivo = appData.ultimo;
-      const fecha = new Date(appData.actualizadoEn);
-      document.getElementById("updated-label").textContent =
-        "Actualizado " + fecha.toLocaleString("es-AR", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
+      // Fetch real Sheet last-modified date from Drive API
+      fetch(DRIVE_API)
+        .then(r => r.json())
+        .then(d => {
+          if (d.modifiedTime) {
+            const fecha = new Date(d.modifiedTime);
+            document.getElementById("updated-label").textContent =
+              "Sheet actualizado " + fecha.toLocaleString("es-AR", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
+          }
+        })
+        .catch(() => {
+          document.getElementById("updated-label").textContent = "Datos cargados";
+        });
 
       renderTabs();
       mostrar(periodoActivo);
@@ -424,6 +524,7 @@
     }
 
     cargarDatos();
+    leerVentasSheet(); // cargar ventas del Sheet al abrir
   </script>
 </body>
 </html>
