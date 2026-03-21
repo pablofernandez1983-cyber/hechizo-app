@@ -58,6 +58,20 @@
     @keyframes spin { to { transform:rotate(360deg); } }
     .state-text { font-size:14px; color:var(--muted); text-align:center; }
     .retry-btn { padding:10px 24px; border-radius:20px; border:1px solid var(--accent); background:transparent; color:var(--accent); font-size:14px; font-family:"DM Sans",sans-serif; cursor:pointer; }
+    .nav { display:flex; border-bottom:1px solid var(--border); margin: 16px 20px 0; gap: 0; }
+    .nav-tab { flex:1; padding:10px; text-align:center; font-size:13px; color:var(--muted); border-bottom:2px solid transparent; cursor:pointer; transition:all .2s; -webkit-tap-highlight-color:transparent; background:transparent; border-top:none; border-left:none; border-right:none; font-family:"DM Sans",sans-serif; }
+    .nav-tab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:500; }
+    .ventas-screen { flex:1; padding:20px; display:flex; flex-direction:column; gap:12px; }
+    .ventas-hero { background:linear-gradient(135deg,#0d3320 0%,#0a2218 100%); border:1px solid rgba(52,211,153,.15); border-radius:20px; padding:20px; position:relative; overflow:hidden; }
+    .ventas-hero::before { content:""; position:absolute; top:-40px; right:-40px; width:140px; height:140px; border-radius:50%; background:radial-gradient(circle,rgba(52,211,153,.15) 0%,transparent 70%); }
+    .ventas-label { font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--success); margin-bottom:8px; }
+    .ventas-value { font-family:"DM Serif Display",serif; font-size:36px; color:var(--text); line-height:1; margin-bottom:4px; }
+    .ventas-sub { font-size:13px; color:var(--muted); }
+    .variacion-pos { color:var(--success); font-weight:500; }
+    .variacion-neg { color:var(--danger); font-weight:500; }
+    .ventas-refresh-btn { width:100%; padding:14px; border-radius:16px; border:1px solid var(--border); background:var(--card); color:var(--accent); font-size:14px; font-family:"DM Sans",sans-serif; cursor:pointer; transition:background .2s; -webkit-tap-highlight-color:transparent; }
+    .ventas-refresh-btn:active { background:#2d1060; }
+    .ventas-spinner { display:inline-block; width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; margin-right:6px; }
     .hidden { display:none !important; }
   </style>
 </head>
@@ -81,8 +95,35 @@
       </div>
       <div class="brand-sub">Estado de resultados</div>
     </header>
-    <div class="tabs-wrap" id="tabs"></div>
-    <main id="main-content"></main>
+    <nav class="nav">
+      <button class="nav-tab active" id="nav-resultados" onclick="switchTab('resultados')">Resultados</button>
+      <button class="nav-tab" id="nav-ventas" onclick="switchTab('ventas')">Ventas</button>
+    </nav>
+    <div id="panel-resultados">
+      <div class="tabs-wrap" id="tabs"></div>
+      <main id="main-content"></main>
+    </div>
+    <div id="panel-ventas" class="ventas-screen hidden">
+      <div class="ventas-hero" id="ventas-hero">
+        <div class="ventas-label">Ventas de hoy</div>
+        <div class="ventas-value" id="ventas-hoy-total">—</div>
+        <div class="ventas-sub" id="ventas-hoy-cant"></div>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi-card">
+          <div class="kpi-label">Ayer</div>
+          <div class="kpi-value" id="ventas-ayer-total">—</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;" id="ventas-ayer-cant"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Variación</div>
+          <div class="kpi-value" id="ventas-variacion">—</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">hoy vs ayer</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);text-align:center;" id="ventas-actualizado"></div>
+      <button class="ventas-refresh-btn" id="ventas-btn" onclick="refrescarVentas()">↻ Refrescar ventas</button>
+    </div>
     <footer>
       <div class="updated-label" id="updated-label"></div>
       <button class="refresh-btn" onclick="cargarDatos()">↻ Actualizar</button>
@@ -90,9 +131,11 @@
   </div>
 
   <script>
-    const API_KEY   = "AIzaSyDPSPGFE6NGthBfEJtWIEnZ-LxcKJJFZjI";
+    const API_KEY      = "AIzaSyDPSPGFE6NGthBfEJtWIEnZ-LxcKJJFZjI";
     const SHEET_ID  = "1nUWfj9u0y7M7n2fNG6v55WnIxAedPpBxQZFUXk28nlI";
-    const SHEET_NAME = "Hoja 1";
+    const SHEET_NAME       = "Hoja 1";
+    const VENTAS_SHEET     = "Ventas_diarias";
+    const VENTAS_URL       = "https://hechizo-ventas-service-production.up.railway.app/ventas";
 
     const LABELS = {
       "Ingresos":                   { label:"Ingresos",         tipo:"ingreso" },
@@ -120,6 +163,148 @@
     function show(id) {
       ["screen-loading","screen-error","screen-content"]
         .forEach(s => document.getElementById(s).classList.toggle("hidden", s !== id));
+    }
+
+    let ventasData = null;
+
+    function switchTab(tab) {
+      const esVentas = tab === 'ventas';
+      document.getElementById("panel-resultados").classList.toggle("hidden", esVentas);
+      document.getElementById("panel-ventas").classList.toggle("hidden", !esVentas);
+      document.getElementById("nav-resultados").classList.toggle("active", !esVentas);
+      document.getElementById("nav-ventas").classList.toggle("active", esVentas);
+    }
+
+    async function refrescarVentas() {
+      const btn = document.getElementById("ventas-btn");
+      btn.innerHTML = '<span class="ventas-spinner"></span>Actualizando...';
+      btn.disabled = true;
+
+      try {
+        // 1. Llamar a Railway para que actualice Tiendanube → Sheet
+        if (VENTAS_URL && !VENTAS_URL.includes("TU_RAILWAY")) {
+          try {
+            const rr = await fetch(VENTAS_URL + "?t=" + Date.now());
+            const rj = await rr.json();
+            if (rj.ok) {
+              // Railway devolvió los datos directamente, usarlos
+              ventasData = rj;
+              renderVentas();
+              return;
+            }
+          } catch(e) {
+            console.warn("Railway no disponible, leyendo Sheet:", e);
+          }
+        }
+        // 2. Fallback: leer el Sheet directamente
+        const range = encodeURIComponent(VENTAS_SHEET);
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&t=${Date.now()}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Error " + res.status);
+        const json = await res.json();
+        procesarVentas(json.values);
+      } catch(err) {
+        document.getElementById("ventas-actualizado").textContent = "Error al cargar: " + err.message;
+      } finally {
+        btn.innerHTML = "↻ Refrescar ventas";
+        btn.disabled = false;
+      }
+    }
+
+    function procesarVentas(rows) {
+      if (!rows || rows.length < 2) {
+        document.getElementById("ventas-actualizado").textContent = "Sin datos disponibles";
+        return;
+      }
+
+      // Encontrar índices de columnas
+      const headers = rows[0].map(h => String(h).trim());
+      const iDate   = headers.findIndex(h => h.toLowerCase().includes("fecha"));
+      const iPago   = headers.findIndex(h => h.toLowerCase().includes("pago"));
+      const iTotal  = headers.findIndex(h => h.toLowerCase().includes("total"));
+
+      if (iDate === -1 || iTotal === -1) {
+        document.getElementById("ventas-actualizado").textContent = "Error: columnas no encontradas";
+        return;
+      }
+
+      // Hora Argentina UTC-3
+      const ahora = new Date();
+      const tzOffset = -3 * 60;
+      const ahoraAR = new Date(ahora.getTime() + (ahora.getTimezoneOffset() + tzOffset * -1) * 60000);
+      // Corregido: usar offset correcto
+      const offsetMs = (-3) * 60 * 60 * 1000;
+      const ahoraARFixed = new Date(Date.now() + offsetMs + ahora.getTimezoneOffset() * 60000);
+
+      const pad = n => String(n).padStart(2, "0");
+      const toDateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+      const hoyStr  = toDateStr(ahoraARFixed);
+      const ayerStr = toDateStr(new Date(ahoraARFixed.getTime() - 86400000));
+
+      const acum = { [hoyStr]: {total:0, cant:0}, [ayerStr]: {total:0, cant:0} };
+
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r];
+        const rawFecha = String(row[iDate] || "").trim();
+        const estadoPago = String(row[iPago] || "").trim();
+        const rawTotal = String(row[iTotal] || "0").trim();
+
+        if (!rawFecha) continue;
+        if (estadoPago === "Cancelada" || estadoPago === "cancelled" || estadoPago === "") continue;
+
+        // Fecha puede ser "21/03/2026 00:26:47" o "2026-03-21 00:26:47"
+        let diaStr = "";
+        const matchDMY = rawFecha.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        const matchYMD = rawFecha.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (matchDMY) diaStr = `${matchDMY[3]}-${matchDMY[2]}-${matchDMY[1]}`;
+        else if (matchYMD) diaStr = `${matchYMD[1]}-${matchYMD[2]}-${matchYMD[3]}`;
+        else continue;
+
+        if (!acum[diaStr]) continue; // solo hoy y ayer
+
+        const total = parseFloat(rawTotal.replace(/[^0-9.-]/g, "")) || 0;
+        acum[diaStr].total += total;
+        acum[diaStr].cant  += 1;
+      }
+
+      const hoy  = acum[hoyStr];
+      const ayer = acum[ayerStr];
+
+      let variacion = null;
+      if (ayer.total > 0) {
+        variacion = Math.round((hoy.total - ayer.total) / ayer.total * 1000) / 10;
+      }
+
+      ventasData = {
+        actualizadoEn: new Date().toISOString(),
+        hoy:  { fecha: hoyStr,  total: Math.round(hoy.total),  cantidad: hoy.cant  },
+        ayer: { fecha: ayerStr, total: Math.round(ayer.total), cantidad: ayer.cant },
+        variacion
+      };
+      renderVentas();
+    }
+
+    function renderVentas() {
+      if (!ventasData) return;
+      const v = ventasData;
+      document.getElementById("ventas-hoy-total").textContent = fmt(v.hoy.total);
+      document.getElementById("ventas-hoy-cant").textContent = v.hoy.cantidad + " pedidos pagados";
+      document.getElementById("ventas-ayer-total").textContent = fmt(v.ayer.total);
+      document.getElementById("ventas-ayer-cant").textContent = v.ayer.cantidad + " pedidos";
+
+      if (v.variacion !== null) {
+        const signo = v.variacion >= 0 ? "+" : "";
+        const cls   = v.variacion >= 0 ? "variacion-pos" : "variacion-neg";
+        document.getElementById("ventas-variacion").innerHTML =
+          `<span class="${cls}">${signo}${v.variacion}%</span>`;
+      } else {
+        document.getElementById("ventas-variacion").textContent = "—";
+      }
+
+      const fecha = new Date(v.actualizadoEn);
+      document.getElementById("ventas-actualizado").textContent =
+        "Datos al " + fecha.toLocaleString("es-AR", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
     }
 
     async function cargarDatos() {
