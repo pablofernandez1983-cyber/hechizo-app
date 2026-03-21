@@ -225,16 +225,17 @@
 
       // Encontrar índices de columnas
       const headers = rows[0].map(h => String(h).trim());
-      const iDate   = headers.findIndex(h => h.toLowerCase().includes("fecha"));
-      const iPago   = headers.findIndex(h => h.toLowerCase().includes("pago"));
-      const iTotal  = headers.findIndex(h => h.toLowerCase().includes("total"));
+      const iOrden  = headers.findIndex(h => h.toLowerCase().includes("número de orden") || h.toLowerCase().includes("numero de orden"));
+      const iDate   = headers.findIndex(h => h.toLowerCase() === "fecha");
+      const iPago   = headers.findIndex(h => h.toLowerCase().includes("estado del pago"));
+      const iTotal  = headers.findIndex(h => h.toLowerCase() === "total");
 
       if (iDate === -1 || iTotal === -1) {
         document.getElementById("ventas-actualizado").textContent = "Error: columnas no encontradas";
         return;
       }
 
-      // Hora Argentina UTC-3 — forma simple y correcta
+      // Hora Argentina
       const ahoraAR = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
       const pad = n => String(n).padStart(2, "0");
       const toDateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
@@ -243,17 +244,24 @@
       const ayerStr = toDateStr(new Date(ahoraAR.getTime() - 86400000));
 
       const acum = { [hoyStr]: {total:0, cant:0}, [ayerStr]: {total:0, cant:0} };
+      const ordenesVistas = new Set(); // para deduplicar por número de orden
 
       for (let r = 1; r < rows.length; r++) {
         const row = rows[r];
         const rawFecha = String(row[iDate] || "").trim();
         const estadoPago = String(row[iPago] || "").trim();
-        const rawTotal = String(row[iTotal] || "0").trim();
+        const rawTotal = String(row[iTotal] || "").trim();
+        const numOrden = iOrden >= 0 ? String(row[iOrden] || "").trim() : "";
 
-        if (!rawFecha) continue;
-        if (estadoPago === "Cancelada" || estadoPago === "cancelled" || estadoPago === "") continue;
+        // Solo procesar filas con fecha y total (primera fila de cada orden)
+        if (!rawFecha || !rawTotal) continue;
+        if (estadoPago === "Cancelada" || estadoPago === "cancelled") continue;
 
-        // Fecha puede ser "21/03/2026 00:26:47" o "2026-03-21 00:26:47"
+        // Deduplicar — cada orden se cuenta una sola vez
+        if (numOrden && ordenesVistas.has(numOrden)) continue;
+        if (numOrden) ordenesVistas.add(numOrden);
+
+        // Parsear fecha "21/03/2026 00:26:47" o "2026-03-21 00:26:47"
         let diaStr = "";
         const matchDMY = rawFecha.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
         const matchYMD = rawFecha.match(/^(\d{4})-(\d{2})-(\d{2})/);
