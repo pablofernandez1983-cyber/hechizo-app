@@ -177,6 +177,7 @@
       document.getElementById("panel-ventas").classList.toggle("hidden", !esVentas);
       document.getElementById("nav-resultados").classList.toggle("active", !esVentas);
       document.getElementById("nav-ventas").classList.toggle("active", esVentas);
+      localStorage.setItem("hechizo_tab", tab);
     }
 
     async function refrescarVentas() {
@@ -471,6 +472,9 @@
       renderTabs();
       mostrar(periodoActivo);
       show("screen-content");
+      // Restaurar última solapa activa
+      const lastTab = localStorage.getItem("hechizo_tab");
+      if (lastTab === "ventas") switchTab("ventas");
     }
 
     function renderTabs() {
