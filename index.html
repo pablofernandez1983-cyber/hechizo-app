@@ -132,405 +132,452 @@
     </footer>
   </div>
 
-  <script>
-    const API_KEY      = "AIzaSyDPSPGFE6NGthBfEJtWIEnZ-LxcKJJFZjI";
-    const SHEET_ID  = "1nUWfj9u0y7M7n2fNG6v55WnIxAedPpBxQZFUXk28nlI";
-    const SHEET_NAME       = "Hoja 1";
-    const VENTAS_SHEET     = "Ventas_diarias";
-    const VENTAS_URL       = "https://hechizo-ventas-service-production.up.railway.app/ventas";
-    const TRIGGER_RANGE    = "Trigger!A1";
-    const DRIVE_API        = `https://www.googleapis.com/drive/v3/files/${SHEET_ID}?fields=modifiedTime&key=${API_KEY}`;
+<script>
+  const API_KEY      = "AIzaSyDPSPGFE6NGthBfEJtWIEnZ-LxcKJJFZjI";
+  const SHEET_ID     = "1nUWfj9u0y7M7n2fNG6v55WnIxAedPpBxQZFUXk28nlI";
+  const SHEET_NAME   = "Hoja 1";
+  const VENTAS_SHEET = "Ventas_diarias";
+  const VENTAS_URL   = "https://hechizo-ventas-service-production.up.railway.app/ventas";
+  const TRIGGER_RANGE = "Trigger!A1";
+  const DRIVE_API    = `https://www.googleapis.com/drive/v3/files/${SHEET_ID}?fields=modifiedTime&key=${API_KEY}`;
 
-    const LABELS = {
-      "Ingresos":                   { label:"Ingresos",         tipo:"ingreso" },
-      "Costo de Mercaderia":        { label:"Costo mercadería", tipo:"egreso"  },
-      "Costo de Mercadería":        { label:"Costo mercadería", tipo:"egreso"  },
-      "Gastos por Ventas":          { label:"Gastos ventas",    tipo:"egreso"  },
-      "Gastos de Comercialización": { label:"Comercialización", tipo:"egreso"  },
-      "Gastos de Administración":   { label:"Administración",   tipo:"egreso"  },
-      "Publicidad":                 { label:"Publicidad",       tipo:"egreso"  },
-      "Impuestos":                  { label:"Impuestos",        tipo:"egreso"  },
-      "Totales":                    { label:"Resultado neto",   tipo:"total"   },
-    };
+  const LABELS = {
+    "Ingresos":                   { label:"Ingresos",         tipo:"ingreso" },
+    "Costo de Mercaderia":        { label:"Costo mercadería", tipo:"egreso"  },
+    "Costo de Mercadería":        { label:"Costo mercadería", tipo:"egreso"  },
+    "Gastos por Ventas":          { label:"Gastos ventas",    tipo:"egreso"  },
+    "Gastos de Comercialización": { label:"Comercialización", tipo:"egreso"  },
+    "Gastos de Administración":   { label:"Administración",   tipo:"egreso"  },
+    "Publicidad":                 { label:"Publicidad",       tipo:"egreso"  },
+    "Impuestos":                  { label:"Impuestos",        tipo:"egreso"  },
+    "Totales":                    { label:"Resultado neto",   tipo:"total"   },
+  };
 
-    let appData = null;
-    let periodoActivo = null;
+  let appData = null;
+  let periodoActivo = null;
+  let ventasData = null;
+  let ultimaFechaSheet = null;
+  let ultimaLecturaVentasMs = 0;
+  let ventasRefreshPromise = null;
 
-    function fmt(n) { return "$" + Math.abs(Math.round(n)).toLocaleString("es-AR"); }
+  function fmt(n) {
+    return "$" + Math.abs(Math.round(Number(n) || 0)).toLocaleString("es-AR");
+  }
 
-    function fmtPeriodo(p) {
-      const [anio, mes] = String(p).split(/[,\.]/);
-      const meses = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-      return (meses[parseInt(mes)] || mes) + " " + anio;
+  function fmtPeriodo(p) {
+    const [anio, mes] = String(p).split(/[,\.]/);
+    const meses = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+    return (meses[parseInt(mes, 10)] || mes) + " " + anio;
+  }
+
+  function fmtFechaReal(valor) {
+    if (!valor) return "sin dato";
+    const fecha = valor instanceof Date ? valor : new Date(valor);
+    if (Number.isNaN(fecha.getTime())) return "sin dato";
+    return fecha.toLocaleString("es-AR", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+
+  function show(id) {
+    ["screen-loading","screen-error","screen-content"]
+      .forEach(s => document.getElementById(s).classList.toggle("hidden", s !== id));
+  }
+
+  async function obtenerFechaRealSheet(force = false) {
+    if (ultimaFechaSheet && !force) return ultimaFechaSheet;
+    const res = await fetch(DRIVE_API + `&t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) throw new Error("No se pudo leer fecha real del Sheet");
+    const json = await res.json();
+    ultimaFechaSheet = json.modifiedTime || null;
+    return ultimaFechaSheet;
+  }
+
+  function actualizarLabelResultados() {
+    const label = document.getElementById("updated-label");
+    if (appData && appData.actualizadoEn) {
+      label.textContent = "Datos al " + fmtFechaReal(appData.actualizadoEn);
+    } else {
+      label.textContent = "Datos sin fecha de actualización";
     }
+  }
 
-    function show(id) {
-      ["screen-loading","screen-error","screen-content"]
-        .forEach(s => document.getElementById(s).classList.toggle("hidden", s !== id));
+  function switchTab(tab) {
+    const esVentas = tab === "ventas";
+    document.getElementById("panel-resultados").classList.toggle("hidden", esVentas);
+    document.getElementById("panel-ventas").classList.toggle("hidden", !esVentas);
+    document.getElementById("nav-resultados").classList.toggle("active", !esVentas);
+    document.getElementById("nav-ventas").classList.toggle("active", esVentas);
+    localStorage.setItem("hechizo_tab", tab);
+
+    if (esVentas) asegurarVentasActualizadas();
+  }
+
+  async function asegurarVentasActualizadas() {
+    const ahora = Date.now();
+    const estaStale = !ventasData || (ahora - ultimaLecturaVentasMs > 60000);
+    if (estaStale) {
+      await cargarVentas({ silent: true, mostrarSpinner: false, forzarRailway: false });
     }
+  }
 
-    let ventasData = null;
+  async function refrescarVentas() {
+    await cargarVentas({ silent: false, mostrarSpinner: true, forzarRailway: true });
+    switchTab("ventas");
+  }
 
-    function switchTab(tab) {
-      const esVentas = tab === 'ventas';
-      document.getElementById("panel-resultados").classList.toggle("hidden", esVentas);
-      document.getElementById("panel-ventas").classList.toggle("hidden", !esVentas);
-      document.getElementById("nav-resultados").classList.toggle("active", !esVentas);
-      document.getElementById("nav-ventas").classList.toggle("active", esVentas);
-      localStorage.setItem("hechizo_tab", tab);
-    }
+  async function cargarVentas({ silent = false, mostrarSpinner = false, forzarRailway = false } = {}) {
+    if (ventasRefreshPromise) return ventasRefreshPromise;
 
-    async function refrescarVentas() {
-      const btn = document.getElementById("ventas-btn");
+    const btn = document.getElementById("ventas-btn");
+    const textoOriginal = btn.innerHTML;
+
+    if (mostrarSpinner) {
       btn.innerHTML = '<span class="ventas-spinner"></span>Actualizando...';
       btn.disabled = true;
+    }
 
+    ventasRefreshPromise = (async () => {
       try {
-        // 1. Llamar a Railway para que actualice Tiendanube → Sheet
         if (VENTAS_URL && !VENTAS_URL.includes("TU_RAILWAY")) {
           try {
-            const rr = await fetch(VENTAS_URL + "?t=" + Date.now());
-            const rj = await rr.json();
-            if (rj.ok) {
-              ventasData = rj;
-              renderVentas();
-              // Asegurar que seguimos en solapa ventas
-              switchTab("ventas");
-              return;
+            const rr = await fetch(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" });
+            if (rr.ok) {
+              const rj = await rr.json();
+              if (rj.ok && rj.hoy && rj.ayer) {
+                ventasData = {
+                  ...rj,
+                  actualizadoEn: rj.actualizadoEn || (forzarRailway ? new Date().toISOString() : (appData?.actualizadoEn || null))
+                };
+                ultimaLecturaVentasMs = Date.now();
+                renderVentas();
+                return;
+              }
             }
-          } catch(e) {
+          } catch (e) {
             console.warn("Railway no disponible, leyendo Sheet:", e);
           }
         }
-        // 2. Fallback: leer el Sheet directamente
+
         const range = encodeURIComponent(VENTAS_SHEET);
         const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&t=${Date.now()}`;
-        const res = await fetch(url);
+        const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error("Error " + res.status);
         const json = await res.json();
-        procesarVentas(json.values);
-        switchTab("ventas");
-      } catch(err) {
-        document.getElementById("ventas-actualizado").textContent = "Error al cargar: " + err.message;
+        const fechaReal = forzarRailway ? await obtenerFechaRealSheet(true) : (appData?.actualizadoEn || await obtenerFechaRealSheet(false));
+        procesarVentas(json.values, fechaReal);
+        ultimaLecturaVentasMs = Date.now();
+      } catch (err) {
+        if (!silent) {
+          document.getElementById("ventas-actualizado").textContent = "Error al cargar: " + err.message;
+        }
       } finally {
-        btn.innerHTML = "↻ Refrescar ventas";
-        btn.disabled = false;
+        if (mostrarSpinner) {
+          btn.innerHTML = textoOriginal;
+          btn.disabled = false;
+        }
+        ventasRefreshPromise = null;
       }
+    })();
+
+    return ventasRefreshPromise;
+  }
+
+  function procesarVentas(rows, fechaReal = null) {
+    if (!rows || rows.length < 2) {
+      document.getElementById("ventas-actualizado").textContent = "Sin datos disponibles";
+      return;
     }
 
-    function procesarVentas(rows) {
-      if (!rows || rows.length < 2) {
-        document.getElementById("ventas-actualizado").textContent = "Sin datos disponibles";
-        return;
+    const headers = rows[0].map(h => String(h).trim());
+    const iOrden = headers.findIndex(h => h.toLowerCase().includes("número de orden") || h.toLowerCase().includes("numero de orden"));
+    const iDate  = headers.findIndex(h => h.toLowerCase() === "fecha");
+    const iPago  = headers.findIndex(h => h.toLowerCase().includes("estado del pago"));
+    const iTotal = headers.findIndex(h => h.toLowerCase() === "total");
+
+    if (iDate === -1 || iTotal === -1) {
+      document.getElementById("ventas-actualizado").textContent = "Error: columnas no encontradas";
+      return;
+    }
+
+    const ahoraAR = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
+    const pad = n => String(n).padStart(2, "0");
+    const toDateStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    const hoyStr  = toDateStr(ahoraAR);
+    const ayerStr = toDateStr(new Date(ahoraAR.getTime() - 86400000));
+
+    const acum = {
+      [hoyStr]:  { total: 0, cant: 0 },
+      [ayerStr]: { total: 0, cant: 0 }
+    };
+
+    const ordenesVistas = new Set();
+
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r];
+      const rawFecha = String(row[iDate] || "").trim();
+      const estadoPago = String(row[iPago] || "").trim();
+      const rawTotal = String(row[iTotal] || "").trim();
+      const numOrden = iOrden >= 0 ? String(row[iOrden] || "").trim() : "";
+
+      if (!rawFecha || !rawTotal) continue;
+      if (estadoPago === "Cancelada" || estadoPago === "cancelled") continue;
+
+      if (numOrden && ordenesVistas.has(numOrden)) continue;
+      if (numOrden) ordenesVistas.add(numOrden);
+
+      let diaStr = "";
+      const matchDMY = rawFecha.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      const matchYMD = rawFecha.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+      if (matchDMY) diaStr = `${matchDMY[3]}-${matchDMY[2]}-${matchDMY[1]}`;
+      else if (matchYMD) diaStr = `${matchYMD[1]}-${matchYMD[2]}-${matchYMD[3]}`;
+      else continue;
+
+      if (!acum[diaStr]) continue;
+
+      const total = parseFloat(rawTotal.replace(/[^0-9.-]/g, "")) || 0;
+      acum[diaStr].total += total;
+      acum[diaStr].cant += 1;
+    }
+
+    const hoy = acum[hoyStr];
+    const ayer = acum[ayerStr];
+
+    let variacion = null;
+    if (ayer.total > 0) {
+      variacion = Math.round(((hoy.total - ayer.total) / ayer.total) * 1000) / 10;
+    }
+
+    ventasData = {
+      actualizadoEn: fechaReal,
+      hoy:  { fecha: hoyStr,  total: Math.round(hoy.total),  cantidad: hoy.cant },
+      ayer: { fecha: ayerStr, total: Math.round(ayer.total), cantidad: ayer.cant },
+      variacion
+    };
+
+    renderVentas();
+  }
+
+  function renderVentas() {
+    if (!ventasData) return;
+
+    const v = ventasData;
+    document.getElementById("ventas-hoy-total").textContent = fmt(v.hoy.total);
+    document.getElementById("ventas-hoy-cant").textContent = v.hoy.cantidad + " pedidos pagados";
+    document.getElementById("ventas-ayer-total").textContent = fmt(v.ayer.total);
+    document.getElementById("ventas-ayer-cant").textContent = v.ayer.cantidad + " pedidos";
+
+    if (v.variacion !== null) {
+      const signo = v.variacion >= 0 ? "+" : "";
+      const cls = v.variacion >= 0 ? "variacion-pos" : "variacion-neg";
+      document.getElementById("ventas-variacion").innerHTML =
+        `<span class="${cls}">${signo}${v.variacion}%</span>`;
+    } else {
+      document.getElementById("ventas-variacion").textContent = "—";
+    }
+
+    document.getElementById("ventas-actualizado").textContent =
+      "Datos al " + fmtFechaReal(v.actualizadoEn);
+  }
+
+  async function leerVentasSheet() {
+    await cargarVentas({ silent: true, mostrarSpinner: false, forzarRailway: false });
+  }
+
+  async function triggearKnime() {
+    const btn = document.getElementById("refresh-resultados-btn");
+    const status = document.getElementById("trigger-status");
+    btn.disabled = true;
+    btn.textContent = "Enviando señal...";
+    status.textContent = "";
+
+    try {
+      const res = await fetch("https://hechizo-ventas-service-production.up.railway.app/trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "PENDIENTE" })
+      });
+
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Error");
+
+      btn.textContent = "⏳ Esperando KNIME...";
+      status.textContent = "La PC procesará el pedido en los próximos 30 segundos";
+      esperarResultado();
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = "↻ Refrescar resultados";
+      status.textContent = "Error: " + err.message;
+    }
+  }
+
+  async function esperarResultado() {
+    const btn = document.getElementById("refresh-resultados-btn");
+    const status = document.getElementById("trigger-status");
+    let intentos = 0;
+    const maxIntentos = 40;
+
+    const poll = setInterval(async () => {
+      intentos++;
+      try {
+        const res = await fetch("https://hechizo-ventas-service-production.up.railway.app/trigger/status?t=" + Date.now(), {
+          cache: "no-store"
+        });
+        const json = await res.json();
+        const estado = json.estado || "";
+
+        if (estado === "LISTO") {
+          clearInterval(poll);
+          status.textContent = "KNIME terminó — recargando datos...";
+          await cargarDatos();
+          btn.disabled = false;
+          btn.textContent = "↻ Refrescar resultados";
+          status.textContent = "Datos al " + fmtFechaReal(appData?.actualizadoEn);
+        } else if (estado === "ERROR") {
+          clearInterval(poll);
+          btn.disabled = false;
+          btn.textContent = "↻ Refrescar resultados";
+          status.textContent = "KNIME terminó con error";
+        } else if (intentos >= maxIntentos) {
+          clearInterval(poll);
+          btn.disabled = false;
+          btn.textContent = "↻ Refrescar resultados";
+          status.textContent = "Timeout — revisá la PC";
+        } else {
+          status.textContent = `Esperando KNIME... (${intentos * 15}s)`;
+        }
+      } catch (e) {
+        // silencioso
       }
+    }, 15000);
+  }
 
-      // Encontrar índices de columnas
-      const headers = rows[0].map(h => String(h).trim());
-      const iOrden  = headers.findIndex(h => h.toLowerCase().includes("número de orden") || h.toLowerCase().includes("numero de orden"));
-      const iDate   = headers.findIndex(h => h.toLowerCase() === "fecha");
-      const iPago   = headers.findIndex(h => h.toLowerCase().includes("estado del pago"));
-      const iTotal  = headers.findIndex(h => h.toLowerCase() === "total");
+  async function cargarDatos() {
+    show("screen-loading");
+    try {
+      const range = encodeURIComponent(SHEET_NAME);
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&t=${Date.now()}`;
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error("Error " + res.status);
+      const json = await res.json();
+      const fechaReal = await obtenerFechaRealSheet(true);
+      procesarDatos(json.values, fechaReal);
+    } catch (err) {
+      show("screen-error");
+      document.getElementById("error-msg").textContent = "No se pudo cargar: " + err.message;
+    }
+  }
 
-      if (iDate === -1 || iTotal === -1) {
-        document.getElementById("ventas-actualizado").textContent = "Error: columnas no encontradas";
-        return;
-      }
+  function procesarDatos(rows, fechaReal = null) {
+    if (!rows || rows.length < 2) throw new Error("Sheet vacío");
 
-      // Hora Argentina
-      const ahoraAR = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
-      const pad = n => String(n).padStart(2, "0");
-      const toDateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    const headers = rows[0];
+    const periodos = headers.slice(1).map(p => String(p).trim()).filter(Boolean);
 
-      const hoyStr  = toDateStr(ahoraAR);
-      const ayerStr = toDateStr(new Date(ahoraAR.getTime() - 86400000));
-
-      const acum = { [hoyStr]: {total:0, cant:0}, [ayerStr]: {total:0, cant:0} };
-      const ordenesVistas = new Set(); // para deduplicar por número de orden
-
+    const valores = {};
+    periodos.forEach((p, colIdx) => {
+      valores[p] = {};
       for (let r = 1; r < rows.length; r++) {
-        const row = rows[r];
-        const rawFecha = String(row[iDate] || "").trim();
-        const estadoPago = String(row[iPago] || "").trim();
-        const rawTotal = String(row[iTotal] || "").trim();
-        const numOrden = iOrden >= 0 ? String(row[iOrden] || "").trim() : "";
-
-        // Solo procesar filas con fecha y total (primera fila de cada orden)
-        if (!rawFecha || !rawTotal) continue;
-        if (estadoPago === "Cancelada" || estadoPago === "cancelled") continue;
-
-        // Deduplicar — cada orden se cuenta una sola vez
-        if (numOrden && ordenesVistas.has(numOrden)) continue;
-        if (numOrden) ordenesVistas.add(numOrden);
-
-        // Parsear fecha "21/03/2026 00:26:47" o "2026-03-21 00:26:47"
-        let diaStr = "";
-        const matchDMY = rawFecha.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-        const matchYMD = rawFecha.match(/^(\d{4})-(\d{2})-(\d{2})/);
-        if (matchDMY) diaStr = `${matchDMY[3]}-${matchDMY[2]}-${matchDMY[1]}`;
-        else if (matchYMD) diaStr = `${matchYMD[1]}-${matchYMD[2]}-${matchYMD[3]}`;
-        else continue;
-
-        if (!acum[diaStr]) continue; // solo hoy y ayer
-
-        const total = parseFloat(rawTotal.replace(/[^0-9.-]/g, "")) || 0;
-        acum[diaStr].total += total;
-        acum[diaStr].cant  += 1;
+        const nombre = String(rows[r][0] || "").trim();
+        if (!nombre) continue;
+        const val = rows[r][colIdx + 1] || "0";
+        valores[p][nombre] = parseFloat(String(val).replace(/[^0-9\-\.]/g, "")) || 0;
       }
+    });
 
-      const hoy  = acum[hoyStr];
-      const ayer = acum[ayerStr];
+    const hoy = new Date();
+    const anioActual = hoy.getFullYear();
+    const mesActual = hoy.getMonth() + 1;
 
-      let variacion = null;
-      if (ayer.total > 0) {
-        variacion = Math.round((hoy.total - ayer.total) / ayer.total * 1000) / 10;
-      }
+    const periodoHoy = periodos.find(p => {
+      const [a, m] = String(p).split(/[,\.]/);
+      return parseInt(a, 10) === anioActual && parseInt(m, 10) === mesActual;
+    });
 
-      ventasData = {
-        actualizadoEn: new Date().toISOString(),
-        hoy:  { fecha: hoyStr,  total: Math.round(hoy.total),  cantidad: hoy.cant  },
-        ayer: { fecha: ayerStr, total: Math.round(ayer.total), cantidad: ayer.cant },
-        variacion
-      };
-      renderVentas();
-    }
+    const periodosFuturos = new Set(periodos.filter(p => {
+      const [a, m] = String(p).split(/[,\.]/);
+      const pa = parseInt(a, 10);
+      const pm = parseInt(m, 10);
+      return pa > anioActual || (pa === anioActual && pm > mesActual);
+    }));
 
-    function renderVentas() {
-      if (!ventasData) return;
-      const v = ventasData;
-      document.getElementById("ventas-hoy-total").textContent = fmt(v.hoy.total);
-      document.getElementById("ventas-hoy-cant").textContent = v.hoy.cantidad + " pedidos pagados";
-      document.getElementById("ventas-ayer-total").textContent = fmt(v.ayer.total);
-      document.getElementById("ventas-ayer-cant").textContent = v.ayer.cantidad + " pedidos";
+    appData = {
+      periodos,
+      ultimo: periodoHoy || periodos[periodos.length - 1],
+      periodosFuturos,
+      valores,
+      actualizadoEn: fechaReal
+    };
 
-      if (v.variacion !== null) {
-        const signo = v.variacion >= 0 ? "+" : "";
-        const cls   = v.variacion >= 0 ? "variacion-pos" : "variacion-neg";
-        document.getElementById("ventas-variacion").innerHTML =
-          `<span class="${cls}">${signo}${v.variacion}%</span>`;
-      } else {
-        document.getElementById("ventas-variacion").textContent = "—";
-      }
+    periodoActivo = appData.ultimo;
+    actualizarLabelResultados();
+    renderTabs();
+    mostrar(periodoActivo);
+    show("screen-content");
 
-      const fecha = new Date(v.actualizadoEn);
-      document.getElementById("ventas-actualizado").textContent =
-        "Datos al " + fecha.toLocaleString("es-AR", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
-    }
+    const lastTab = localStorage.getItem("hechizo_tab");
+    if (lastTab === "ventas") switchTab("ventas");
+  }
 
-    async function leerVentasSheet() {
-      // Carga ventas desde el Sheet silenciosamente al abrir la app
-      try {
-        const range = encodeURIComponent(VENTAS_SHEET);
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&t=${Date.now()}`;
-        const res = await fetch(url);
-        if (!res.ok) return;
-        const json = await res.json();
-        if (json.values) procesarVentas(json.values);
-      } catch(e) {
-        // silencioso — no mostrar error si falla al abrir
-      }
-    }
+  function renderTabs() {
+    document.getElementById("tabs").innerHTML = appData.periodos.map(p => {
+      const futuro = appData.periodosFuturos.has(p);
+      const active = p === periodoActivo;
+      const cls = ["tab", active ? "active" : "", futuro ? "disabled" : ""].filter(Boolean).join(" ");
+      return `<button class="${cls}" ${futuro ? "" : `onclick="mostrar('${p}')"`}>${fmtPeriodo(p)}</button>`;
+    }).join("");
+  }
 
-    async function triggearKnime() {
-      const btn = document.getElementById("refresh-resultados-btn");
-      const status = document.getElementById("trigger-status");
-      btn.disabled = true;
-      btn.textContent = "Enviando señal...";
-      status.textContent = "";
+  function mostrar(periodo) {
+    periodoActivo = periodo;
+    const vals = appData.valores[periodo];
 
-      try {
-        // Escribir PENDIENTE en el Sheet via Sheets API
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent("Trigger!A1")}?valueInputOption=RAW&key=${API_KEY}`;
-        // API Key no puede escribir — necesitamos otro approach
-        // Usamos el endpoint de Railway para escribir en el Sheet
-        const res = await fetch("https://hechizo-ventas-service-production.up.railway.app/trigger", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "PENDIENTE" })
-        });
-        const json = await res.json();
-        if (!json.ok) throw new Error(json.error || "Error");
+    document.querySelectorAll(".tab").forEach((t, i) => {
+      t.classList.toggle("active", appData.periodos[i] === periodo);
+    });
 
-        btn.textContent = "⏳ Esperando KNIME...";
-        status.textContent = "La PC procesará el pedido en los próximos 30 segundos";
-        esperarResultado();
+    const ingresos = vals["Ingresos"] || 0;
+    const totalKey = Object.keys(vals).find(k => k.toLowerCase().includes("total")) || "Totales";
+    const resultado = vals[totalKey] || 0;
+    const margen = ingresos ? ((resultado / ingresos) * 100).toFixed(1) : 0;
 
-      } catch(err) {
-        btn.disabled = false;
-        btn.textContent = "↻ Refrescar resultados";
-        status.textContent = "Error: " + err.message;
-      }
-    }
+    const egresos = Object.entries(vals)
+      .filter(([k]) => LABELS[k] && LABELS[k].tipo === "egreso")
+      .map(([k, v]) => ({ nombre: LABELS[k].label, valor: Math.abs(v) }))
+      .sort((a, b) => b.valor - a.valor);
 
-    async function esperarResultado() {
-      const btn = document.getElementById("refresh-resultados-btn");
-      const status = document.getElementById("trigger-status");
-      let intentos = 0;
-      const maxIntentos = 40; // 40 * 15s = 10 minutos max
+    const maxEgreso = egresos.length ? egresos[0].valor : 1;
 
-      const poll = setInterval(async () => {
-        intentos++;
-        try {
-          const res = await fetch("https://hechizo-ventas-service-production.up.railway.app/trigger/status?t=" + Date.now());
-          const json = await res.json();
-          const estado = json.estado || "";
+    document.getElementById("main-content").innerHTML = `
+      <div class="hero-card">
+        <div class="hero-label">Resultado neto</div>
+        <div class="hero-value">${fmt(resultado)}</div>
+        <div class="hero-margin">Margen: <span>${margen}%</span> sobre ingresos</div>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi-card"><div class="kpi-label">Ingresos</div><div class="kpi-value">${fmt(ingresos)}</div></div>
+        <div class="kpi-card"><div class="kpi-label">Total egresos</div><div class="kpi-value neg">${fmt(ingresos - resultado)}</div></div>
+      </div>
+      <div class="section-title">Desglose de egresos</div>
+      <div class="breakdown-card">
+        ${egresos.map(e => `
+          <div class="breakdown-row">
+            <div class="breakdown-bar-wrap">
+              <div class="breakdown-name">${e.nombre}</div>
+              <div class="breakdown-track"><div class="breakdown-fill" style="width:${Math.round((e.valor / maxEgreso) * 100)}%"></div></div>
+            </div>
+            <div class="breakdown-val">${fmt(e.valor)}</div>
+          </div>`).join("")}
+      </div>`;
+  }
 
-          if (estado === "LISTO") {
-            clearInterval(poll);
-            status.textContent = "KNIME terminó — recargando datos...";
-            await cargarDatos();
-            btn.disabled = false;
-            btn.textContent = "↻ Refrescar resultados";
-            status.textContent = "Actualizado " + new Date().toLocaleString("es-AR", {hour:"2-digit", minute:"2-digit"});
-          } else if (estado === "ERROR") {
-            clearInterval(poll);
-            btn.disabled = false;
-            btn.textContent = "↻ Refrescar resultados";
-            status.textContent = "KNIME terminó con error";
-          } else if (intentos >= maxIntentos) {
-            clearInterval(poll);
-            btn.disabled = false;
-            btn.textContent = "↻ Refrescar resultados";
-            status.textContent = "Timeout — revisá la PC";
-          } else {
-            status.textContent = `Esperando KNIME... (${intentos * 15}s)`;
-          }
-        } catch(e) {
-          // silencioso
-        }
-      }, 15000);
-    }
-
-    async function cargarDatos() {
-      show("screen-loading");
-      try {
-        const range = encodeURIComponent(SHEET_NAME);
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Error " + res.status);
-        const json = await res.json();
-        procesarDatos(json.values);
-      } catch(err) {
-        show("screen-error");
-        document.getElementById("error-msg").textContent = "No se pudo cargar: " + err.message;
-      }
-    }
-
-    function procesarDatos(rows) {
-      if (!rows || rows.length < 2) throw new Error("Sheet vacío");
-      const headers = rows[0];
-      const periodos = headers.slice(1).map(p => String(p).trim()).filter(Boolean);
-
-      const valores = {};
-      periodos.forEach((p, colIdx) => {
-        valores[p] = {};
-        for (let r = 1; r < rows.length; r++) {
-          const nombre = String(rows[r][0] || "").trim();
-          if (!nombre) continue;
-          const val = rows[r][colIdx + 1] || "0";
-          valores[p][nombre] = parseFloat(String(val).replace(/[^0-9\-\.]/g, "")) || 0;
-        }
-      });
-
-      const hoy = new Date();
-      const anioActual = hoy.getFullYear();
-      const mesActual = hoy.getMonth() + 1;
-
-      const periodoHoy = periodos.find(p => {
-        const [a, m] = String(p).split(/[,\.]/);
-        return parseInt(a) === anioActual && parseInt(m) === mesActual;
-      });
-
-      const periodosFuturos = new Set(periodos.filter(p => {
-        const [a, m] = String(p).split(/[,\.]/);
-        const pa = parseInt(a), pm = parseInt(m);
-        return pa > anioActual || (pa === anioActual && pm > mesActual);
-      }));
-
-      appData = {
-        periodos,
-        ultimo: periodoHoy || periodos[periodos.length - 1],
-        periodosFuturos,
-        valores,
-        actualizadoEn: new Date().toISOString()
-      };
-
-      periodoActivo = appData.ultimo;
-      // Fetch real Sheet last-modified date from Drive API
-      fetch(DRIVE_API)
-        .then(r => r.json())
-        .then(d => {
-          if (d.modifiedTime) {
-            const fecha = new Date(d.modifiedTime);
-            document.getElementById("updated-label").textContent =
-              "Sheet actualizado " + fecha.toLocaleString("es-AR", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
-          }
-        })
-        .catch(() => {
-          document.getElementById("updated-label").textContent = "Datos cargados";
-        });
-
-      renderTabs();
-      mostrar(periodoActivo);
-      show("screen-content");
-      // Restaurar última solapa activa
-      const lastTab = localStorage.getItem("hechizo_tab");
-      if (lastTab === "ventas") switchTab("ventas");
-    }
-
-    function renderTabs() {
-      document.getElementById("tabs").innerHTML = appData.periodos.map(p => {
-        const futuro = appData.periodosFuturos.has(p);
-        const active = p === periodoActivo;
-        const cls = ["tab", active ? "active" : "", futuro ? "disabled" : ""].filter(Boolean).join(" ");
-        return `<button class="${cls}" ${futuro ? "" : `onclick="mostrar('${p}')"`}>${fmtPeriodo(p)}</button>`;
-      }).join("");
-    }
-
-    function mostrar(periodo) {
-      periodoActivo = periodo;
-      const vals = appData.valores[periodo];
-
-      document.querySelectorAll(".tab").forEach((t, i) => {
-        t.classList.toggle("active", appData.periodos[i] === periodo);
-      });
-
-      const ingresos = vals["Ingresos"] || 0;
-      const totalKey = Object.keys(vals).find(k => k.toLowerCase().includes("total")) || "Totales";
-      const resultado = vals[totalKey] || 0;
-      const margen = ingresos ? ((resultado / ingresos) * 100).toFixed(1) : 0;
-
-      const egresos = Object.entries(vals)
-        .filter(([k]) => LABELS[k] && LABELS[k].tipo === "egreso")
-        .map(([k, v]) => ({ nombre: LABELS[k].label, valor: Math.abs(v) }))
-        .sort((a, b) => b.valor - a.valor);
-
-      const maxEgreso = egresos.length ? egresos[0].valor : 1;
-
-      document.getElementById("main-content").innerHTML = `
-        <div class="hero-card">
-          <div class="hero-label">Resultado neto</div>
-          <div class="hero-value">${fmt(resultado)}</div>
-          <div class="hero-margin">Margen: <span>${margen}%</span> sobre ingresos</div>
-        </div>
-        <div class="kpi-row">
-          <div class="kpi-card"><div class="kpi-label">Ingresos</div><div class="kpi-value">${fmt(ingresos)}</div></div>
-          <div class="kpi-card"><div class="kpi-label">Total egresos</div><div class="kpi-value neg">${fmt(ingresos - resultado)}</div></div>
-        </div>
-        <div class="section-title">Desglose de egresos</div>
-        <div class="breakdown-card">
-          ${egresos.map(e => `
-            <div class="breakdown-row">
-              <div class="breakdown-bar-wrap">
-                <div class="breakdown-name">${e.nombre}</div>
-                <div class="breakdown-track"><div class="breakdown-fill" style="width:${Math.round((e.valor/maxEgreso)*100)}%"></div></div>
-              </div>
-              <div class="breakdown-val">${fmt(e.valor)}</div>
-            </div>`).join("")}
-        </div>`;
-    }
-
-    cargarDatos();
-    leerVentasSheet(); // cargar ventas del Sheet al abrir
-  </script>
+  cargarDatos();
+  leerVentasSheet();
+</script>
 </body>
 </html>
