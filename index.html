@@ -133,13 +133,13 @@
   </div>
 
 <script>
-  const API_KEY      = "AIzaSyDPSPGFE6NGthBfEJtWIEnZ-LxcKJJFZjI";
-  const SHEET_ID     = "1nUWfj9u0y7M7n2fNG6v55WnIxAedPpBxQZFUXk28nlI";
-  const SHEET_NAME   = "Hoja 1";
-  const VENTAS_SHEET = "Ventas_diarias";
-  const VENTAS_URL   = "https://hechizo-ventas-service-production.up.railway.app/ventas";
+  const API_KEY       = "AIzaSyDPSPGFE6NGthBfEJtWIEnZ-LxcKJJFZjI";
+  const SHEET_ID      = "1nUWfj9u0y7M7n2fNG6v55WnIxAedPpBxQZFUXk28nlI";
+  const SHEET_NAME    = "Hoja 1";
+  const VENTAS_SHEET  = "Ventas_diarias";
+  const VENTAS_URL    = "https://hechizo-ventas-service-production.up.railway.app/ventas";
   const TRIGGER_RANGE = "Trigger!A1";
-  const DRIVE_API    = `https://www.googleapis.com/drive/v3/files/${SHEET_ID}?fields=modifiedTime&key=${API_KEY}`;
+  const STATUS_RANGE  = "Trigger!A2";
 
   const LABELS = {
     "Ingresos":                   { label:"Ingresos",         tipo:"ingreso" },
@@ -156,7 +156,7 @@
   let appData = null;
   let periodoActivo = null;
   let ventasData = null;
-  let ultimaFechaSheet = null;
+  let ultimaFechaGeneral = null;
   let ultimaLecturaVentasMs = 0;
   let ventasRefreshPromise = null;
 
@@ -171,9 +171,9 @@
   }
 
   function fmtFechaReal(valor) {
-    if (!valor) return "sin dato";
+    if (!valor) return "sin fecha disponible";
     const fecha = valor instanceof Date ? valor : new Date(valor);
-    if (Number.isNaN(fecha.getTime())) return "sin dato";
+    if (Number.isNaN(fecha.getTime())) return String(valor);
     return fecha.toLocaleString("es-AR", {
       day: "2-digit",
       month: "short",
@@ -182,19 +182,36 @@
     });
   }
 
+  function parsearFechaEstado(valor) {
+    if (!valor) return null;
+    const texto = String(valor).trim();
+
+    const iso = texto.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[+-]\d{2}:\d{2}|Z)?/);
+    if (iso) return iso[0];
+
+    const normal = texto.match(/(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})/);
+    if (normal) return `${normal[1]}T${normal[2]}`;
+
+    return texto;
+  }
+
   function show(id) {
     ["screen-loading","screen-error","screen-content"]
       .forEach(s => document.getElementById(s).classList.toggle("hidden", s !== id));
   }
 
-  async function obtenerFechaRealSheet(force = false) {
-    if (ultimaFechaSheet && !force) return ultimaFechaSheet;
+  async function obtenerFechaGeneral(force = false) {
+    if (ultimaFechaGeneral && !force) return ultimaFechaGeneral;
+
     try {
-      const res = await fetch(DRIVE_API + `&t=${Date.now()}`, { cache: "no-store" });
+      const range = encodeURIComponent(STATUS_RANGE);
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&t=${Date.now()}`;
+      const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) return null;
       const json = await res.json();
-      ultimaFechaSheet = json.modifiedTime || null;
-      return ultimaFechaSheet;
+      const valor = json.values?.[0]?.[0] || null;
+      ultimaFechaGeneral = parsearFechaEstado(valor);
+      return ultimaFechaGeneral;
     } catch (e) {
       return null;
     }
@@ -273,8 +290,8 @@
         const json = await res.json();
 
         const fechaReal = forzarRailway
-          ? (await obtenerFechaRealSheet(true)) || new Date().toISOString()
-          : appData?.actualizadoEn || (await obtenerFechaRealSheet(false)) || null;
+          ? new Date().toISOString()
+          : appData?.actualizadoEn || await obtenerFechaGeneral(false) || null;
 
         procesarVentas(json.values, fechaReal);
         ultimaLecturaVentasMs = Date.now();
@@ -474,8 +491,8 @@
       if (!res.ok) throw new Error("Error " + res.status);
       const json = await res.json();
 
-      const fechaReal = await obtenerFechaRealSheet(true);
-      procesarDatos(json.values, fechaReal);
+      const fechaGeneral = await obtenerFechaGeneral(true);
+      procesarDatos(json.values, fechaGeneral);
     } catch (err) {
       show("screen-error");
       document.getElementById("error-msg").textContent = "No se pudo cargar: " + err.message;
