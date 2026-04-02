@@ -141,6 +141,9 @@
   const TRIGGER_RANGE = "Trigger!A1";
   const STATUS_RANGE  = "Trigger!A2";
 
+  const STORAGE_VENTAS_KEY = "hechizo_ventas_data";
+  const STORAGE_VENTAS_TS_KEY = "hechizo_ventas_ts";
+
   const LABELS = {
     "Ingresos":                   { label:"Ingresos",         tipo:"ingreso" },
     "Costo de Mercaderia":        { label:"Costo mercadería", tipo:"egreso"  },
@@ -159,6 +162,7 @@
   let ultimaFechaGeneral = null;
   let ultimaLecturaVentasMs = 0;
   let ventasRefreshPromise = null;
+  let ventasRestauradasLocalmente = false;
 
   function fmt(n) {
     return "$" + Math.abs(Math.round(Number(n) || 0)).toLocaleString("es-AR");
@@ -193,6 +197,35 @@
     if (normal) return `${normal[1]}T${normal[2]}`;
 
     return texto;
+  }
+
+  function guardarVentasLocal() {
+    try {
+      if (!ventasData) return;
+      localStorage.setItem(STORAGE_VENTAS_KEY, JSON.stringify(ventasData));
+      localStorage.setItem(STORAGE_VENTAS_TS_KEY, String(Date.now()));
+    } catch (e) {
+      // silencioso
+    }
+  }
+
+  function restaurarVentasLocal() {
+    try {
+      const raw = localStorage.getItem(STORAGE_VENTAS_KEY);
+      const ts = localStorage.getItem(STORAGE_VENTAS_TS_KEY);
+      if (!raw) return false;
+
+      const parsed = JSON.parse(raw);
+      if (!parsed || !parsed.hoy || !parsed.ayer) return false;
+
+      ventasData = parsed;
+      ultimaLecturaVentasMs = parseInt(ts || "0", 10) || 0;
+      ventasRestauradasLocalmente = true;
+      renderVentas();
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   function show(id) {
@@ -240,8 +273,24 @@
   async function asegurarVentasActualizadas() {
     const ahora = Date.now();
     const estaStale = !ventasData || (ahora - ultimaLecturaVentasMs > 60000);
-    if (estaStale) {
-      await cargarVentas({ silent: true, mostrarSpinner: false, forzarRailway: false });
+
+    if (!estaStale) return;
+
+    try {
+      const range = encodeURIComponent(VENTAS_SHEET);
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&t=${Date.now()}`;
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) return;
+      const json = await res.json();
+
+      const fechaReal = ventasRestauradasLocalmente
+        ? ventasData?.actualizadoEn || appData?.actualizadoEn || await obtenerFechaGeneral(false) || null
+        : appData?.actualizadoEn || await obtenerFechaGeneral(false) || null;
+
+      procesarVentas(json.values, fechaReal, !ventasRestauradasLocalmente);
+      ultimaLecturaVentasMs = Date.now();
+    } catch (e) {
+      // silencioso
     }
   }
 
@@ -263,23 +312,20 @@
 
     ventasRefreshPromise = (async () => {
       try {
-        if (VENTAS_URL && !VENTAS_URL.includes("TU_RAILWAY")) {
-          try {
-            const rr = await fetch(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" });
-            if (rr.ok) {
-              const rj = await rr.json();
-              if (rj.ok && rj.hoy && rj.ayer) {
-                ventasData = {
-                  ...rj,
-                  actualizadoEn: rj.actualizadoEn || (forzarRailway ? new Date().toISOString() : (appData?.actualizadoEn || null))
-                };
-                ultimaLecturaVentasMs = Date.now();
-                renderVentas();
-                return;
-              }
-            }
-          } catch (e) {
-            console.warn("Railway no disponible, leyendo Sheet:", e);
+        if (forzarRailway && VENTAS_URL && !VENTAS_URL.includes("TU_RAILWAY")) {
+          const rr = await fetch(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" });
+          if (!rr.ok) throw new Error("Error " + rr.status);
+          const rj = await rr.json();
+
+          if (rj.ok && rj.hoy && rj.ayer) {
+            ventasData = {
+              ...rj,
+              actualizadoEn: rj.actualizadoEn || new Date().toISOString()
+            };
+            ventasRestauradasLocalmente = true;
+            ultimaLecturaVentasMs = Date.now();
+            renderVentas();
+            return;
           }
         }
 
@@ -293,7 +339,7 @@
           ? new Date().toISOString()
           : appData?.actualizadoEn || await obtenerFechaGeneral(false) || null;
 
-        procesarVentas(json.values, fechaReal);
+        procesarVentas(json.values, fechaReal, true);
         ultimaLecturaVentasMs = Date.now();
       } catch (err) {
         if (!silent) {
@@ -311,7 +357,7 @@
     return ventasRefreshPromise;
   }
 
-  function procesarVentas(rows, fechaReal = null) {
+  function procesarVentas(rows, fechaReal = null, permitirPersistir = true) {
     if (!rows || rows.length < 2) {
       document.getElementById("ventas-actualizado").textContent = "Sin datos disponibles";
       return;
@@ -385,10 +431,10 @@
       variacion
     };
 
-    renderVentas();
+    renderVentas(permitirPersistir);
   }
 
-  function renderVentas() {
+  function renderVentas(permitirPersistir = true) {
     if (!ventasData) return;
 
     const v = ventasData;
@@ -408,9 +454,12 @@
 
     document.getElementById("ventas-actualizado").textContent =
       "Datos al " + fmtFechaReal(v.actualizadoEn);
+
+    if (permitirPersistir) guardarVentasLocal();
   }
 
   async function leerVentasSheet() {
+    if (ventasRestauradasLocalmente) return;
     await cargarVentas({ silent: true, mostrarSpinner: false, forzarRailway: false });
   }
 
@@ -602,6 +651,7 @@
       </div>`;
   }
 
+  restaurarVentasLocal();
   cargarDatos();
   leerVentasSheet();
 </script>
