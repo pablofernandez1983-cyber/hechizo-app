@@ -32,7 +32,9 @@
     body.light .breakdown-detail { background: rgba(124,58,237,.06); }
     body.light .detail-row { border-bottom-color: rgba(124,58,237,.08); }
     .theme-btn { background:transparent; border:1px solid var(--border); border-radius:20px; padding:4px 10px; font-size:12px; color:var(--muted); cursor:pointer; font-family:"DM Sans",sans-serif; transition:all .2s; -webkit-tap-highlight-color:transparent; margin-left:auto; }
-    body { font-family: "DM Sans", sans-serif; background: var(--bg); color: var(--text); min-height: 100dvh; display: flex; flex-direction: column; }
+    body { font-family: "DM Sans", sans-serif; background: var(--bg); color: var(--text); height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+    #screen-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #panel-resultados { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; }
     header { padding: calc(env(safe-area-inset-top,0px) + 20px) 20px 0; background: linear-gradient(180deg,#1a0a2e 0%,transparent 100%); }
     .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
     .brand img { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; }
@@ -43,7 +45,8 @@
     .tab { flex-shrink:0; padding:6px 14px; border-radius:20px; font-size:13px; color:var(--muted); border:1px solid var(--border); background:transparent; cursor:pointer; transition:all .2s; -webkit-tap-highlight-color:transparent; }
     .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:500; }
     .tab.disabled { opacity:.3; cursor:not-allowed; pointer-events:none; }
-    main { flex:1; padding:20px; padding-bottom:120px; display:flex; flex-direction:column; gap:12px; }
+    main { padding:20px; padding-bottom:20px; display:flex; flex-direction:column; gap:12px; }
+    footer { flex-shrink:0; }
     .hero-card { background:linear-gradient(135deg,#2d1060 0%,#1e0a4e 100%); border:1px solid var(--border); border-radius:20px; padding:20px; position:relative; overflow:hidden; }
     .hero-card::before { content:""; position:absolute; top:-40px; right:-40px; width:140px; height:140px; border-radius:50%; background:radial-gradient(circle,rgba(192,132,252,.2) 0%,transparent 70%); }
     .hero-label { font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--accent); margin-bottom:8px; }
