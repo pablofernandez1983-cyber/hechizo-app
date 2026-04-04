@@ -135,7 +135,7 @@
 <script>
   const API_KEY       = "AIzaSyDPSPGFE6NGthBfEJtWIEnZ-LxcKJJFZjI";
   const SHEET_ID      = "1nUWfj9u0y7M7n2fNG6v55WnIxAedPpBxQZFUXk28nlI";
-  const SHEET_NAME    = "Hoja 1";
+  const SHEET_NAME    = String(new Date().getFullYear());
   const VENTAS_SHEET  = "Ventas_diarias";
   const VENTAS_URL    = "https://hechizo-ventas-service-production.up.railway.app/ventas";
   const TRIGGER_RANGE = "Trigger!A1";
@@ -464,25 +464,26 @@
     await cargarVentas({ silent: true, mostrarSpinner: false, forzarRailway: false });
   }
 
+  const RAILWAY_URL = "https://hechizo-reporte-nuevo-production.up.railway.app";
+
   async function triggearKnime() {
     const btn = document.getElementById("refresh-resultados-btn");
     const status = document.getElementById("trigger-status");
     btn.disabled = true;
-    btn.textContent = "Enviando señal...";
+    btn.textContent = "Iniciando reporte...";
     status.textContent = "";
 
     try {
-      const res = await fetch("https://hechizo-ventas-service-production.up.railway.app/trigger", {
+      const res = await fetch(`${RAILWAY_URL}/ejecutar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "PENDIENTE" })
       });
 
       const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "Error");
+      if (!json.ok) throw new Error(json.msg || "Error");
 
-      btn.textContent = "⏳ Esperando KNIME...";
-      status.textContent = "La PC procesará el pedido en los próximos 30 segundos";
+      btn.textContent = "⏳ Procesando...";
+      status.textContent = "El reporte está corriendo en Railway";
       esperarResultado();
     } catch (err) {
       btn.disabled = false;
@@ -500,31 +501,28 @@
     const poll = setInterval(async () => {
       intentos++;
       try {
-        const res = await fetch("https://hechizo-ventas-service-production.up.railway.app/trigger/status?t=" + Date.now(), {
-          cache: "no-store"
-        });
+        const res = await fetch(`${RAILWAY_URL}/estado?t=${Date.now()}`, { cache: "no-store" });
         const json = await res.json();
-        const estado = json.estado || "";
 
-        if (estado === "LISTO") {
+        if (!json.corriendo && json.resultado === "OK") {
           clearInterval(poll);
-          status.textContent = "KNIME terminó — recargando datos...";
+          status.textContent = "Reporte listo — recargando datos...";
           await cargarDatos();
           btn.disabled = false;
           btn.textContent = "↻ Refrescar resultados";
           status.textContent = "Datos al " + fmtFechaReal(appData?.actualizadoEn);
-        } else if (estado === "ERROR") {
+        } else if (!json.corriendo && json.resultado === "ERROR") {
           clearInterval(poll);
           btn.disabled = false;
           btn.textContent = "↻ Refrescar resultados";
-          status.textContent = "KNIME terminó con error";
+          status.textContent = "Error en Railway: " + (json.error || "desconocido");
         } else if (intentos >= maxIntentos) {
           clearInterval(poll);
           btn.disabled = false;
           btn.textContent = "↻ Refrescar resultados";
-          status.textContent = "Timeout — revisá la PC";
+          status.textContent = "Timeout — revisá Railway";
         } else {
-          status.textContent = `Esperando KNIME... (${intentos * 15}s)`;
+          status.textContent = `Procesando... (${intentos * 15}s)`;
         }
       } catch (e) {
         // silencioso
@@ -536,7 +534,7 @@
     show("screen-loading");
     try {
       const range = encodeURIComponent(SHEET_NAME);
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&t=${Date.now()}`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&valueRenderOption=UNFORMATTED_VALUE&t=${Date.now()}`;
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error("Error " + res.status);
       const json = await res.json();
