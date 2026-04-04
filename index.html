@@ -88,9 +88,12 @@
     .ventas-refresh-btn:active { background:#2d1060; }
     .ventas-spinner { display:inline-block; width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; margin-right:6px; }
     .hidden { display:none !important; }
-    .log-panel { background:rgba(0,0,0,.3); border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:11px; font-family:monospace; color:var(--muted); max-height:160px; overflow-y:auto; margin-top:6px; display:none; white-space:pre-wrap; word-break:break-all; }
-    .log-panel.visible { display:block; }
-    body.light .log-panel { background:rgba(0,0,0,.05); }
+    .progress-wrap { margin-top:8px; display:none; }
+    .progress-wrap.visible { display:block; }
+    .progress-step { font-size:11px; color:var(--muted); margin-bottom:5px; }
+    .progress-bar-track { height:3px; background:rgba(255,255,255,.08); border-radius:2px; overflow:hidden; }
+    body.light .progress-bar-track { background:rgba(0,0,0,.1); }
+    .progress-bar-fill { height:100%; background:var(--accent); border-radius:2px; transition:width .6s ease; }
     .breakdown-row { cursor:pointer; -webkit-tap-highlight-color:transparent; }
     .breakdown-row:active { background:rgba(255,255,255,.04); }
     .breakdown-chevron { font-size:10px; color:var(--muted); transition:transform .2s; margin-left:4px; }
@@ -158,7 +161,10 @@
       <div class="updated-label" id="updated-label"></div>
       <button class="refresh-btn" id="refresh-resultados-btn" onclick="triggearKnime()">↻ Refrescar resultados</button>
       <div style="font-size:11px;color:var(--muted);margin-top:6px;" id="trigger-status"></div>
-      <div class="log-panel" id="log-panel"></div>
+      <div class="progress-wrap" id="progress-wrap">
+        <div class="progress-step" id="progress-step"></div>
+        <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-bar" style="width:0%"></div></div>
+      </div>
     </footer>
   </div>
 
@@ -533,33 +539,61 @@
     }
   }
 
+  const PASOS_REPORTE = [
+    { texto: "TN Cache",        pct: 10,  keyword: "Tiendanube:" },
+    { texto: "MP Settlement",   pct: 30,  keyword: "MercadoPago:" },
+    { texto: "Meta Ads",        pct: 45,  keyword: "Meta Ads:" },
+    { texto: "Google Ads",      pct: 55,  keyword: "Google Ads:" },
+    { texto: "PagoNube",        pct: 65,  keyword: "PagoNube:" },
+    { texto: "Datos manuales",  pct: 72,  keyword: "Datos manuales:" },
+    { texto: "Sheets",          pct: 82,  keyword: "Escribiendo hojas" },
+    { texto: "Supabase",        pct: 93,  keyword: "Guardando en Supabase" },
+    { texto: "Finalizando",     pct: 99,  keyword: "Supabase OK" },
+  ];
+
+  function detectarPaso(lineas) {
+    let pasoActual = null;
+    for (const linea of lineas) {
+      for (const paso of PASOS_REPORTE) {
+        if (linea.includes(paso.keyword)) pasoActual = paso;
+      }
+    }
+    return pasoActual;
+  }
+
   async function esperarResultado() {
-    const btn    = document.getElementById("refresh-resultados-btn");
-    const status = document.getElementById("trigger-status");
-    const panel  = document.getElementById("log-panel");
-    let intentos = 0;
+    const btn      = document.getElementById("refresh-resultados-btn");
+    const status   = document.getElementById("trigger-status");
+    const wrap     = document.getElementById("progress-wrap");
+    const stepEl   = document.getElementById("progress-step");
+    const barEl    = document.getElementById("progress-bar");
+    let intentos   = 0;
     const maxIntentos = 40;
-    let logDesde = 0;
-    let terminado = false;
+    let logDesde   = 0;
+    let terminado  = false;
+    let todasLineas = [];
 
-    panel.classList.add("visible");
-    panel.textContent = "";
+    wrap.classList.add("visible");
+    barEl.style.width = "3%";
+    stepEl.textContent = "Railway / Iniciando...";
 
-    // Poll de logs cada 3 segundos
     const pollLogs = setInterval(async () => {
       if (terminado) { clearInterval(pollLogs); return; }
       try {
         const res = await fetch(`${RAILWAY_URL}/logs?desde=${logDesde}&t=${Date.now()}`, { cache: "no-store" });
         const json = await res.json();
         if (json.lineas && json.lineas.length > 0) {
-          panel.textContent += json.lineas.join("\n") + "\n";
-          panel.scrollTop = panel.scrollHeight;
+          todasLineas = todasLineas.concat(json.lineas);
           logDesde = json.total;
+          const paso = detectarPaso(todasLineas);
+          if (paso) {
+            stepEl.textContent = `Railway / ${paso.texto}`;
+            barEl.style.width = paso.pct + "%";
+          }
         }
       } catch (e) { /* silencioso */ }
     }, 3000);
 
-    // Poll de estado cada 15 segundos
     const pollEstado = setInterval(async () => {
       intentos++;
       try {
@@ -569,26 +603,28 @@
         if (!json.corriendo && json.resultado === "OK") {
           clearInterval(pollEstado);
           terminado = true;
-          status.textContent = "Reporte listo — recargando datos...";
+          barEl.style.width = "100%";
+          stepEl.textContent = "Railway / Completado";
+          status.textContent = "Recargando datos...";
           await cargarDatos();
           btn.disabled = false;
           btn.textContent = "↻ Refrescar resultados";
           status.textContent = "Datos al " + fmtFechaReal(appData?.actualizadoEn);
-          panel.classList.remove("visible");
+          wrap.classList.remove("visible");
         } else if (!json.corriendo && json.resultado === "ERROR") {
           clearInterval(pollEstado);
           terminado = true;
+          wrap.classList.remove("visible");
           btn.disabled = false;
           btn.textContent = "↻ Refrescar resultados";
-          status.textContent = "Error en Railway: " + (json.error || "desconocido");
+          status.textContent = "Error: " + (json.error || "desconocido");
         } else if (intentos >= maxIntentos) {
           clearInterval(pollEstado);
           terminado = true;
+          wrap.classList.remove("visible");
           btn.disabled = false;
           btn.textContent = "↻ Refrescar resultados";
           status.textContent = "Timeout — revisá Railway";
-        } else {
-          status.textContent = `Procesando... (${intentos * 15}s)`;
         }
       } catch (e) { /* silencioso */ }
     }, 15000);
