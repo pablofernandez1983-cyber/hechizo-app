@@ -642,11 +642,11 @@
       </div>
       <div class="kpi-row">
         <div class="kpi-card"><div class="kpi-label">Ingresos</div><div class="kpi-value">${fmt(ingresos)}</div></div>
-        <div class="kpi-card"><div class="kpi-label">Total egresos</div><div class="kpi-value neg">${fmt(ingresos - resultado)}</div></div>
+        <div class="kpi-card"><div class="kpi-label">Est. Resultado Real</div><div class="kpi-value ${estReal < 0 ? "neg" : ""}">${estReal < 0 ? "-" : ""}${fmt(estReal)}</div></div>
       </div>
-      <div class="kpi-card" style="margin-top:0">
-        <div class="kpi-label">Est. Resultado Real</div>
-        <div class="kpi-value ${estReal < 0 ? "neg" : ""}">${estReal < 0 ? "-" : ""}${fmt(estReal)}</div>
+      <div class="kpi-card">
+        <div class="kpi-label">Total egresos</div>
+        <div class="kpi-value neg">${fmt(ingresos - resultado)}</div>
       </div>
       <div class="section-title">Desglose de egresos</div>
       <div class="breakdown-card">
