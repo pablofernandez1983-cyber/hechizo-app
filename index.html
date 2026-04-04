@@ -154,6 +154,7 @@
     "Publicidad":                 { label:"Publicidad",       tipo:"egreso"  },
     "Impuestos":                  { label:"Impuestos",        tipo:"egreso"  },
     "Totales":                    { label:"Resultado neto",   tipo:"total"   },
+    "Estimacion Resultado Real":  { label:"Est. Resultado Real", tipo:"est_real" },
   };
 
   let appData = null;
@@ -619,6 +620,7 @@
     const ingresos = vals["Ingresos"] || 0;
     const totalKey = Object.keys(vals).find(k => k.toLowerCase().includes("total")) || "Totales";
     const resultado = vals[totalKey] || 0;
+    const estReal = vals["Estimacion Resultado Real"] || 0;
     const margen = ingresos ? ((resultado / ingresos) * 100).toFixed(1) : 0;
 
     const egresos = Object.entries(vals)
@@ -637,6 +639,10 @@
       <div class="kpi-row">
         <div class="kpi-card"><div class="kpi-label">Ingresos</div><div class="kpi-value">${fmt(ingresos)}</div></div>
         <div class="kpi-card"><div class="kpi-label">Total egresos</div><div class="kpi-value neg">${fmt(ingresos - resultado)}</div></div>
+      </div>
+      <div class="kpi-card" style="margin-top:0">
+        <div class="kpi-label">Est. Resultado Real</div>
+        <div class="kpi-value ${estReal < 0 ? "neg" : ""}">${estReal < 0 ? "-" : ""}${fmt(estReal)}</div>
       </div>
       <div class="section-title">Desglose de egresos</div>
       <div class="breakdown-card">
