@@ -608,7 +608,7 @@
       if (!res.ok) throw new Error("Error " + res.status);
       const json = await res.json();
 
-      cargarDetalle(); // en paralelo, sin bloquear
+      cargarDetalle().then(() => { if (periodoActivo) mostrar(periodoActivo); }); // en paralelo, re-renderiza cuando llega
       const fechaGeneral = await obtenerFechaGeneral(true);
       procesarDatos(json.values, fechaGeneral);
     } catch (err) {
