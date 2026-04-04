@@ -679,11 +679,6 @@
       .map(([k, v]) => ({ key: k, nombre: LABELS[k].label, valor: Math.abs(v) }))
       .sort((a, b) => b.valor - a.valor);
 
-    // Ingresos también con detalle
-    const ingresosItems = Object.entries(vals)
-      .filter(([k]) => LABELS[k] && LABELS[k].tipo === "ingreso")
-      .map(([k, v]) => ({ key: k, nombre: LABELS[k].label, valor: Math.abs(v) }));
-
     const maxEgreso = egresos.length ? egresos[0].valor : 1;
 
     const renderDetalle = (catKey) => {
@@ -696,6 +691,9 @@
         </div>`).join("");
     };
 
+    const ingresosDetalle = renderDetalle("Ingresos");
+    const ingresosHasDetail = !!ingresosDetalle;
+
     document.getElementById("main-content").innerHTML = `
       <div class="hero-card">
         <div class="hero-label">Resultado neto</div>
@@ -703,27 +701,16 @@
         <div class="hero-margin">Margen: <span>${margen}%</span> sobre ingresos</div>
       </div>
       <div class="kpi-row">
-        <div class="kpi-card"><div class="kpi-label">Ingresos</div><div class="kpi-value">${fmt(ingresos)}</div></div>
+        <div class="kpi-card${ingresosHasDetail ? " breakdown-row" : ""}" style="cursor:${ingresosHasDetail ? "pointer" : "default"}" ${ingresosHasDetail ? `onclick="toggleDetalleKpi(this)"` : ""}>
+          <div class="kpi-label">Ingresos${ingresosHasDetail ? `<span class="breakdown-chevron">▶</span>` : ""}</div>
+          <div class="kpi-value">${fmt(ingresos)}</div>
+          ${ingresosHasDetail ? `<div class="breakdown-detail" style="margin:8px -14px -14px;border-radius:0 0 16px 16px">${ingresosDetalle}</div>` : ""}
+        </div>
         <div class="kpi-card"><div class="kpi-label">Est. Resultado Real</div><div class="kpi-value ${estReal < 0 ? "neg" : ""}">${estReal < 0 ? "-" : ""}${fmt(estReal)}</div></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Total egresos</div>
         <div class="kpi-value neg">${fmt(ingresos - resultado)}</div>
-      </div>
-      <div class="section-title">Ingresos</div>
-      <div class="breakdown-card">
-        ${ingresosItems.map(e => {
-          const det = renderDetalle(e.key);
-          const hasDetail = !!det;
-          return `
-          <div class="breakdown-row${hasDetail ? "" : ""}" ${hasDetail ? `onclick="toggleDetalle(this)"` : ""}>
-            <div class="breakdown-bar-wrap">
-              <div class="breakdown-name">${e.nombre}${hasDetail ? `<span class="breakdown-chevron">▶</span>` : ""}</div>
-            </div>
-            <div class="breakdown-val" style="color:var(--success)">${fmt(e.valor)}</div>
-          </div>
-          ${hasDetail ? `<div class="breakdown-detail">${det}</div>` : ""}`;
-        }).join("")}
       </div>
       <div class="section-title">Desglose de egresos</div>
       <div class="breakdown-card">
@@ -745,6 +732,16 @@
     document.getElementById("main-content").querySelectorAll(".breakdown-detail").forEach(d => {
       d.style.maxHeight = "0";
     });
+  }
+
+  function toggleDetalleKpi(card) {
+    const detail = card.querySelector(".breakdown-detail");
+    if (!detail) return;
+    const isOpen = detail.classList.contains("open");
+    detail.classList.toggle("open", !isOpen);
+    detail.style.maxHeight = isOpen ? "0" : detail.scrollHeight + "px";
+    const chevron = card.querySelector(".breakdown-chevron");
+    if (chevron) chevron.style.transform = isOpen ? "" : "rotate(90deg)";
   }
 
   function toggleDetalle(row) {
