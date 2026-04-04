@@ -74,6 +74,17 @@
     .ventas-refresh-btn:active { background:#2d1060; }
     .ventas-spinner { display:inline-block; width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; margin-right:6px; }
     .hidden { display:none !important; }
+    .breakdown-row { cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .breakdown-row:active { background:rgba(255,255,255,.04); }
+    .breakdown-chevron { font-size:10px; color:var(--muted); transition:transform .2s; margin-left:4px; }
+    .breakdown-row.open .breakdown-chevron { transform:rotate(90deg); }
+    .breakdown-detail { background:rgba(0,0,0,.2); border-bottom:1px solid var(--border); overflow:hidden; max-height:0; transition:max-height .3s ease; }
+    .breakdown-detail.open { max-height:600px; }
+    .detail-row { display:flex; justify-content:space-between; align-items:center; padding:8px 16px 8px 28px; border-bottom:1px solid rgba(255,255,255,.04); }
+    .detail-row:last-child { border-bottom:none; }
+    .detail-name { font-size:12px; color:var(--muted); }
+    .detail-val { font-size:12px; color:var(--danger); font-weight:500; }
+    .detail-val.pos { color:var(--success); }
   </style>
 </head>
 <body>
@@ -160,6 +171,7 @@
   };
 
   let appData = null;
+  let detalleData = null;  // { periodo: { categoria: [{desc, valor}] } }
   let periodoActivo = null;
   let ventasData = null;
   let ultimaFechaGeneral = null;
@@ -538,6 +550,38 @@
     }, 15000);
   }
 
+  async function cargarDetalle() {
+    try {
+      const range = encodeURIComponent(`${SHEET_NAME} detalle`);
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&valueRenderOption=UNFORMATTED_VALUE&t=${Date.now()}`;
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) return;
+      const json = await res.json();
+      const rows = json.values;
+      if (!rows || rows.length < 2) return;
+
+      const headers = rows[0];
+      const periodos = headers.slice(2).map(p => String(p).trim());
+      const result = {};
+      periodos.forEach(p => { result[p] = {}; });
+
+      for (let r = 1; r < rows.length; r++) {
+        const cat  = String(rows[r][0] || "").trim();
+        const desc = String(rows[r][1] || "").trim();
+        if (!cat || !desc || cat.startsWith("SUBTOTAL") || cat.startsWith("RESULTADO") || cat.startsWith("ESTIMACION")) continue;
+        periodos.forEach((p, i) => {
+          const val = parseFloat(rows[r][i + 2]) || 0;
+          if (val === 0) return;
+          if (!result[p][cat]) result[p][cat] = [];
+          result[p][cat].push({ desc, val });
+        });
+      }
+      detalleData = result;
+    } catch (e) {
+      // silencioso
+    }
+  }
+
   async function cargarDatos() {
     show("screen-loading");
     try {
@@ -547,6 +591,7 @@
       if (!res.ok) throw new Error("Error " + res.status);
       const json = await res.json();
 
+      cargarDetalle(); // en paralelo, sin bloquear
       const fechaGeneral = await obtenerFechaGeneral(true);
       procesarDatos(json.values, fechaGeneral);
     } catch (err) {
@@ -631,10 +676,25 @@
 
     const egresos = Object.entries(vals)
       .filter(([k]) => LABELS[k] && LABELS[k].tipo === "egreso")
-      .map(([k, v]) => ({ nombre: LABELS[k].label, valor: Math.abs(v) }))
+      .map(([k, v]) => ({ key: k, nombre: LABELS[k].label, valor: Math.abs(v) }))
       .sort((a, b) => b.valor - a.valor);
 
+    // Ingresos también con detalle
+    const ingresosItems = Object.entries(vals)
+      .filter(([k]) => LABELS[k] && LABELS[k].tipo === "ingreso")
+      .map(([k, v]) => ({ key: k, nombre: LABELS[k].label, valor: Math.abs(v) }));
+
     const maxEgreso = egresos.length ? egresos[0].valor : 1;
+
+    const renderDetalle = (catKey) => {
+      const items = detalleData?.[periodoActivo]?.[catKey];
+      if (!items || items.length === 0) return "";
+      return items.map(it => `
+        <div class="detail-row">
+          <div class="detail-name">${it.desc}</div>
+          <div class="detail-val ${it.val > 0 ? "pos" : ""}">${it.val > 0 ? "" : "-"}${fmt(it.val)}</div>
+        </div>`).join("");
+    };
 
     document.getElementById("main-content").innerHTML = `
       <div class="hero-card">
@@ -650,17 +710,50 @@
         <div class="kpi-label">Total egresos</div>
         <div class="kpi-value neg">${fmt(ingresos - resultado)}</div>
       </div>
+      <div class="section-title">Ingresos</div>
+      <div class="breakdown-card">
+        ${ingresosItems.map(e => {
+          const det = renderDetalle(e.key);
+          const hasDetail = !!det;
+          return `
+          <div class="breakdown-row${hasDetail ? "" : ""}" ${hasDetail ? `onclick="toggleDetalle(this)"` : ""}>
+            <div class="breakdown-bar-wrap">
+              <div class="breakdown-name">${e.nombre}${hasDetail ? `<span class="breakdown-chevron">▶</span>` : ""}</div>
+            </div>
+            <div class="breakdown-val" style="color:var(--success)">${fmt(e.valor)}</div>
+          </div>
+          ${hasDetail ? `<div class="breakdown-detail">${det}</div>` : ""}`;
+        }).join("")}
+      </div>
       <div class="section-title">Desglose de egresos</div>
       <div class="breakdown-card">
-        ${egresos.map(e => `
-          <div class="breakdown-row">
+        ${egresos.map(e => {
+          const det = renderDetalle(e.key);
+          const hasDetail = !!det;
+          return `
+          <div class="breakdown-row" ${hasDetail ? `onclick="toggleDetalle(this)"` : ""}>
             <div class="breakdown-bar-wrap">
-              <div class="breakdown-name">${e.nombre}</div>
+              <div class="breakdown-name">${e.nombre}${hasDetail ? `<span class="breakdown-chevron">▶</span>` : ""}</div>
               <div class="breakdown-track"><div class="breakdown-fill" style="width:${Math.round((e.valor / maxEgreso) * 100)}%"></div></div>
             </div>
             <div class="breakdown-val">${fmt(e.valor)}</div>
-          </div>`).join("")}
+          </div>
+          ${hasDetail ? `<div class="breakdown-detail">${det}</div>` : ""}`;
+        }).join("")}
       </div>`;
+
+    document.getElementById("main-content").querySelectorAll(".breakdown-detail").forEach(d => {
+      d.style.maxHeight = "0";
+    });
+  }
+
+  function toggleDetalle(row) {
+    const detail = row.nextElementSibling;
+    if (!detail || !detail.classList.contains("breakdown-detail")) return;
+    const isOpen = detail.classList.contains("open");
+    detail.classList.toggle("open", !isOpen);
+    detail.style.maxHeight = isOpen ? "0" : detail.scrollHeight + "px";
+    row.classList.toggle("open", !isOpen);
   }
 
   restaurarVentasLocal();
