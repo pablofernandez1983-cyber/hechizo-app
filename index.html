@@ -679,8 +679,6 @@
       .map(([k, v]) => ({ key: k, nombre: LABELS[k].label, valor: Math.abs(v) }))
       .sort((a, b) => b.valor - a.valor);
 
-    const maxEgreso = egresos.length ? egresos[0].valor : 1;
-
     const renderDetalle = (catKey) => {
       const items = detalleData?.[periodoActivo]?.[catKey];
       if (!items || items.length === 0) return "";
@@ -692,45 +690,49 @@
     };
 
     const ingresosDetalle = renderDetalle("Ingresos");
-    const ingresosHasDetail = !!ingresosDetalle;
+    const egresosDetalle  = egresos.map(e => renderDetalle(e.key)).join("");
 
     document.getElementById("main-content").innerHTML = `
       <div class="hero-card">
         <div class="hero-label">Resultado neto</div>
         <div class="hero-value">${fmt(resultado)}</div>
-        <div class="hero-margin">Margen: <span>${margen}%</span> sobre ingresos</div>
+        <div class="hero-margin">Est. Resultado Real: <span class="${estReal < 0 ? "" : ""}${estReal < 0 ? "color:#f87171" : "color:#34d399"}">${estReal < 0 ? "-" : ""}${fmt(estReal)}</span></div>
       </div>
-      <div class="kpi-row">
-        <div class="kpi-card${ingresosHasDetail ? " breakdown-row" : ""}" style="cursor:${ingresosHasDetail ? "pointer" : "default"}" ${ingresosHasDetail ? `onclick="toggleDetalleKpi(this)"` : ""}>
-          <div class="kpi-label">Ingresos${ingresosHasDetail ? `<span class="breakdown-chevron">▶</span>` : ""}</div>
-          <div class="kpi-value">${fmt(ingresos)}</div>
-          ${ingresosHasDetail ? `<div class="breakdown-detail" style="margin:8px -14px -14px;border-radius:0 0 16px 16px">${ingresosDetalle}</div>` : ""}
-        </div>
-        <div class="kpi-card"><div class="kpi-label">Est. Resultado Real</div><div class="kpi-value ${estReal < 0 ? "neg" : ""}">${estReal < 0 ? "-" : ""}${fmt(estReal)}</div></div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Total egresos</div>
-        <div class="kpi-value neg">${fmt(ingresos - resultado)}</div>
-      </div>
-      <div class="section-title">Desglose de egresos</div>
       <div class="breakdown-card">
-        ${egresos.map(e => {
-          const det = renderDetalle(e.key);
-          const hasDetail = !!det;
-          return `
-          <div class="breakdown-row" ${hasDetail ? `onclick="toggleDetalle(this)"` : ""}>
-            <div class="breakdown-bar-wrap">
-              <div class="breakdown-name">${e.nombre}${hasDetail ? `<span class="breakdown-chevron">▶</span>` : ""}</div>
-              <div class="breakdown-track"><div class="breakdown-fill" style="width:${Math.round((e.valor / maxEgreso) * 100)}%"></div></div>
-            </div>
-            <div class="breakdown-val">${fmt(e.valor)}</div>
+        <div class="breakdown-row" onclick="toggleDetalle(this)">
+          <div class="breakdown-bar-wrap">
+            <div class="breakdown-name">Ingresos <span class="breakdown-chevron">▶</span></div>
           </div>
-          ${hasDetail ? `<div class="breakdown-detail">${det}</div>` : ""}`;
-        }).join("")}
+          <div class="breakdown-val" style="color:var(--success)">${fmt(ingresos)}</div>
+        </div>
+        <div class="breakdown-detail">${ingresosDetalle}</div>
+      </div>
+      <div class="breakdown-card">
+        <div class="breakdown-row open" onclick="toggleDetalle(this)">
+          <div class="breakdown-bar-wrap">
+            <div class="breakdown-name">Egresos <span class="breakdown-chevron" style="transform:rotate(90deg)">▶</span></div>
+          </div>
+          <div class="breakdown-val">${fmt(ingresos - resultado)}</div>
+        </div>
+        <div class="breakdown-detail open">
+          ${egresos.map(e => {
+            const det = renderDetalle(e.key);
+            return `
+            <div class="breakdown-row" ${det ? `onclick="toggleDetalle(this)"` : ""}>
+              <div class="breakdown-bar-wrap">
+                <div class="breakdown-name">${e.nombre}${det ? `<span class="breakdown-chevron">▶</span>` : ""}</div>
+              </div>
+              <div class="breakdown-val">${fmt(e.valor)}</div>
+            </div>
+            ${det ? `<div class="breakdown-detail">${det}</div>` : ""}`;
+          }).join("")}
+        </div>
       </div>`;
 
-    document.getElementById("main-content").querySelectorAll(".breakdown-detail").forEach(d => {
-      d.style.maxHeight = "0";
+    // Ingresos cerrado, Egresos abierto por default
+    const allDetails = document.getElementById("main-content").querySelectorAll(".breakdown-detail");
+    allDetails.forEach(d => {
+      d.style.maxHeight = d.classList.contains("open") ? d.scrollHeight + "px" : "0";
     });
   }
 
