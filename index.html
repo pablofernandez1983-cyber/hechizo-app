@@ -88,6 +88,9 @@
     .ventas-refresh-btn:active { background:#2d1060; }
     .ventas-spinner { display:inline-block; width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; margin-right:6px; }
     .hidden { display:none !important; }
+    .log-panel { background:rgba(0,0,0,.3); border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:11px; font-family:monospace; color:var(--muted); max-height:160px; overflow-y:auto; margin-top:6px; display:none; white-space:pre-wrap; word-break:break-all; }
+    .log-panel.visible { display:block; }
+    body.light .log-panel { background:rgba(0,0,0,.05); }
     .breakdown-row { cursor:pointer; -webkit-tap-highlight-color:transparent; }
     .breakdown-row:active { background:rgba(255,255,255,.04); }
     .breakdown-chevron { font-size:10px; color:var(--muted); transition:transform .2s; margin-left:4px; }
@@ -155,6 +158,7 @@
       <div class="updated-label" id="updated-label"></div>
       <button class="refresh-btn" id="refresh-resultados-btn" onclick="triggearKnime()">↻ Refrescar resultados</button>
       <div style="font-size:11px;color:var(--muted);margin-top:6px;" id="trigger-status"></div>
+      <div class="log-panel" id="log-panel"></div>
     </footer>
   </div>
 
@@ -530,40 +534,63 @@
   }
 
   async function esperarResultado() {
-    const btn = document.getElementById("refresh-resultados-btn");
+    const btn    = document.getElementById("refresh-resultados-btn");
     const status = document.getElementById("trigger-status");
+    const panel  = document.getElementById("log-panel");
     let intentos = 0;
     const maxIntentos = 40;
+    let logDesde = 0;
+    let terminado = false;
 
-    const poll = setInterval(async () => {
+    panel.classList.add("visible");
+    panel.textContent = "";
+
+    // Poll de logs cada 3 segundos
+    const pollLogs = setInterval(async () => {
+      if (terminado) { clearInterval(pollLogs); return; }
+      try {
+        const res = await fetch(`${RAILWAY_URL}/logs?desde=${logDesde}&t=${Date.now()}`, { cache: "no-store" });
+        const json = await res.json();
+        if (json.lineas && json.lineas.length > 0) {
+          panel.textContent += json.lineas.join("\n") + "\n";
+          panel.scrollTop = panel.scrollHeight;
+          logDesde = json.total;
+        }
+      } catch (e) { /* silencioso */ }
+    }, 3000);
+
+    // Poll de estado cada 15 segundos
+    const pollEstado = setInterval(async () => {
       intentos++;
       try {
         const res = await fetch(`${RAILWAY_URL}/estado?t=${Date.now()}`, { cache: "no-store" });
         const json = await res.json();
 
         if (!json.corriendo && json.resultado === "OK") {
-          clearInterval(poll);
+          clearInterval(pollEstado);
+          terminado = true;
           status.textContent = "Reporte listo — recargando datos...";
           await cargarDatos();
           btn.disabled = false;
           btn.textContent = "↻ Refrescar resultados";
           status.textContent = "Datos al " + fmtFechaReal(appData?.actualizadoEn);
+          panel.classList.remove("visible");
         } else if (!json.corriendo && json.resultado === "ERROR") {
-          clearInterval(poll);
+          clearInterval(pollEstado);
+          terminado = true;
           btn.disabled = false;
           btn.textContent = "↻ Refrescar resultados";
           status.textContent = "Error en Railway: " + (json.error || "desconocido");
         } else if (intentos >= maxIntentos) {
-          clearInterval(poll);
+          clearInterval(pollEstado);
+          terminado = true;
           btn.disabled = false;
           btn.textContent = "↻ Refrescar resultados";
           status.textContent = "Timeout — revisá Railway";
         } else {
           status.textContent = `Procesando... (${intentos * 15}s)`;
         }
-      } catch (e) {
-        // silencioso
-      }
+      } catch (e) { /* silencioso */ }
     }, 15000);
   }
 
