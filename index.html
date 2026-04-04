@@ -25,8 +25,13 @@
     }
     body.light header { background: linear-gradient(180deg,#ede9fe 0%,transparent 100%); }
     body.light .hero-card { background: linear-gradient(135deg,#ede9fe 0%,#ddd6fe 100%); }
-    body.light .ventas-hero { background: linear-gradient(135deg,#d1fae5 0%,#a7f3d0 100%); }
-    .theme-btn { background:transparent; border:1px solid var(--border); border-radius:20px; padding:4px 10px; font-size:12px; color:var(--muted); cursor:pointer; font-family:"DM Sans",sans-serif; transition:all .2s; -webkit-tap-highlight-color:transparent; }
+    body.light .ventas-hero { background: linear-gradient(135deg,#a7f3d0 0%,#6ee7b7 100%); }
+    body.light .ventas-label { color: #065f46; }
+    body.light .ventas-value { color: #1a0a2e; }
+    body.light .ventas-sub { color: #065f46; }
+    body.light .breakdown-detail { background: rgba(124,58,237,.06); }
+    body.light .detail-row { border-bottom-color: rgba(124,58,237,.08); }
+    .theme-btn { background:transparent; border:1px solid var(--border); border-radius:20px; padding:4px 10px; font-size:12px; color:var(--muted); cursor:pointer; font-family:"DM Sans",sans-serif; transition:all .2s; -webkit-tap-highlight-color:transparent; margin-left:auto; }
     body { font-family: "DM Sans", sans-serif; background: var(--bg); color: var(--text); min-height: 100dvh; display: flex; flex-direction: column; }
     header { padding: calc(env(safe-area-inset-top,0px) + 20px) 20px 0; background: linear-gradient(180deg,#1a0a2e 0%,transparent 100%); }
     .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
@@ -302,10 +307,12 @@
   }
 
   async function asegurarVentasActualizadas() {
-    const ahora = Date.now();
-    const estaStale = !ventasData || (ahora - ultimaLecturaVentasMs > 60000);
+    // Solo re-fetcha si no tenemos datos de hoy — el refresh explícito es para actualizar
+    const ahoraAR = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
+    const pad = n => String(n).padStart(2, "0");
+    const hoyStr = `${ahoraAR.getFullYear()}-${pad(ahoraAR.getMonth()+1)}-${pad(ahoraAR.getDate())}`;
+    if (ventasData && ventasData.hoy && ventasData.hoy.fecha === hoyStr) return;
 
-    if (!estaStale) return;
 
     try {
       const range = encodeURIComponent(VENTAS_SHEET);
