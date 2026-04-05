@@ -959,6 +959,10 @@
     container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;overflow:visible">${svg}</svg>`;
   }
 
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") asegurarVentasActualizadas();
+  });
+
   restaurarVentasLocal();
   cargarDatos();
   leerVentasSheet();
