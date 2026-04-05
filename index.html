@@ -170,7 +170,9 @@
             <button class="chart-range-btn" id="chart-btn-30" onclick="switchChartRange(30)">30d</button>
           </div>
         </div>
-        <canvas id="ventas-chart" height="160"></canvas>
+        <div style="position:relative;height:160px;">
+          <canvas id="ventas-chart"></canvas>
+        </div>
       </div>
     </div>
     <footer>
@@ -894,7 +896,7 @@
   }
 
   function renderChart() {
-    if (!ventasData || !ventasData.diasRecientes) return;
+    if (!ventasData || !ventasData.diasRecientes || !ventasData.diasRecientes.length) return;
     const wrap = document.getElementById("chart-wrap");
     if (!wrap) return;
     wrap.classList.remove("hidden");
