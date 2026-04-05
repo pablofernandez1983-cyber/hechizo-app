@@ -338,24 +338,7 @@
     const dosHorasMs = 2 * 60 * 60 * 1000;
     const datosRecientes = (Date.now() - ultimaLecturaVentasMs) < dosHorasMs;
     if (ventasData && ventasData.hoy && ventasData.hoy.fecha === hoyStr && datosRecientes) return;
-
-
-    try {
-      const range = encodeURIComponent(VENTAS_SHEET);
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&t=${Date.now()}`;
-      const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) return;
-      const json = await res.json();
-
-      const fechaReal = ventasRestauradasLocalmente
-        ? ventasData?.actualizadoEn || appData?.actualizadoEn || await obtenerFechaGeneral(false) || null
-        : appData?.actualizadoEn || await obtenerFechaGeneral(false) || null;
-
-      procesarVentas(json.values, fechaReal, !ventasRestauradasLocalmente);
-      ultimaLecturaVentasMs = Date.now();
-    } catch (e) {
-      // silencioso
-    }
+    await cargarVentas({ silent: true });
   }
 
   async function refrescarVentas() {
@@ -375,14 +358,51 @@
 
     ventasRefreshPromise = (async () => {
       try {
+        // 1. Railway: hoy y ayer en tiempo real
+        let railwayHoy = null, railwayAyer = null, railwayTs = null;
+        if (VENTAS_URL && !VENTAS_URL.includes("TU_RAILWAY")) {
+          try {
+            const rr = await fetch(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" });
+            if (rr.ok) {
+              const rj = await rr.json();
+              if (rj.ok && rj.hoy && rj.ayer) {
+                railwayHoy = rj.hoy;
+                railwayAyer = rj.ayer;
+                railwayTs = rj.actualizadoEn || new Date().toISOString();
+              }
+            }
+          } catch (e) {}
+        }
+
+        // 2. Sheets: historial de los últimos 30 días para el gráfico
         const range = encodeURIComponent(VENTAS_SHEET);
         const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&t=${Date.now()}`;
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error("Error " + res.status);
         const json = await res.json();
 
-        const fechaReal = appData?.actualizadoEn || await obtenerFechaGeneral(false) || new Date().toISOString();
-        procesarVentas(json.values, fechaReal, true);
+        const fechaReal = railwayTs || appData?.actualizadoEn || await obtenerFechaGeneral(false) || new Date().toISOString();
+
+        // procesarVentas construye diasRecientes desde Sheets.
+        // Si Railway funcionó, no persistimos todavía (false) porque vamos a pisar hoy/ayer
+        procesarVentas(json.values, fechaReal, !railwayHoy);
+
+        // 3. Pisar hoy y ayer en cards Y en las barras del gráfico con datos de Railway
+        if (railwayHoy && ventasData) {
+          ventasData.hoy  = railwayHoy;
+          ventasData.ayer = railwayAyer;
+          ventasData.variacion = railwayAyer.total > 0
+            ? Math.round(((railwayHoy.total - railwayAyer.total) / railwayAyer.total) * 1000) / 10
+            : null;
+          if (ventasData.diasRecientes) {
+            for (const d of ventasData.diasRecientes) {
+              if (d.fecha === railwayHoy.fecha)  { d.total = railwayHoy.total;  d.cantidad = railwayHoy.cantidad;  }
+              if (d.fecha === railwayAyer.fecha)  { d.total = railwayAyer.total; d.cantidad = railwayAyer.cantidad; }
+            }
+          }
+          renderVentas(true);
+        }
+
         ultimaLecturaVentasMs = Date.now();
       } catch (err) {
         if (!silent) {
