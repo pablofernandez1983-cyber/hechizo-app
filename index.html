@@ -11,6 +11,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -98,6 +99,11 @@
     .breakdown-row:active { background:rgba(255,255,255,.04); }
     .breakdown-chevron { font-size:10px; color:var(--muted); transition:transform .2s; margin-left:4px; }
     .breakdown-row.open .breakdown-chevron { transform:rotate(90deg); }
+    .chart-wrap { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; }
+    .chart-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+    .chart-range-btns { display:flex; gap:6px; }
+    .chart-range-btn { padding:4px 10px; border-radius:12px; font-size:11px; border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; font-family:"DM Sans",sans-serif; transition:all .2s; -webkit-tap-highlight-color:transparent; }
+    .chart-range-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
     .breakdown-detail { background:rgba(0,0,0,.2); border-bottom:1px solid var(--border); overflow:hidden; max-height:0; transition:max-height .3s ease; }
     .breakdown-detail.open { max-height:600px; }
     .detail-row { display:flex; justify-content:space-between; align-items:center; padding:8px 16px 8px 28px; border-bottom:1px solid rgba(255,255,255,.04); }
@@ -129,14 +135,14 @@
       <div class="brand-sub">Estado de resultados</div>
     </header>
     <nav class="nav">
-      <button class="nav-tab active" id="nav-resultados" onclick="switchTab('resultados')">Resultados</button>
-      <button class="nav-tab" id="nav-ventas" onclick="switchTab('ventas')">Ventas</button>
+      <button class="nav-tab active" id="nav-ventas" onclick="switchTab('ventas')">Ventas</button>
+      <button class="nav-tab" id="nav-resultados" onclick="switchTab('resultados')">Resultados</button>
     </nav>
-    <div id="panel-resultados">
+    <div id="panel-resultados" class="hidden">
       <div class="tabs-wrap" id="tabs"></div>
       <main id="main-content"></main>
     </div>
-    <div id="panel-ventas" class="ventas-screen hidden">
+    <div id="panel-ventas" class="ventas-screen">
       <div class="ventas-hero" id="ventas-hero">
         <div class="ventas-label">Ventas de hoy</div>
         <div class="ventas-value" id="ventas-hoy-total">—</div>
@@ -156,6 +162,16 @@
       </div>
       <div style="font-size:11px;color:var(--muted);text-align:center;" id="ventas-actualizado"></div>
       <button class="ventas-refresh-btn" id="ventas-btn" onclick="refrescarVentas()">↻ Refrescar ventas</button>
+      <div class="chart-wrap hidden" id="chart-wrap">
+        <div class="chart-header">
+          <div class="section-title">Evolución de ventas</div>
+          <div class="chart-range-btns">
+            <button class="chart-range-btn active" id="chart-btn-7" onclick="switchChartRange(7)">7d</button>
+            <button class="chart-range-btn" id="chart-btn-30" onclick="switchChartRange(30)">30d</button>
+          </div>
+        </div>
+        <canvas id="ventas-chart" height="160"></canvas>
+      </div>
     </div>
     <footer>
       <div class="updated-label" id="updated-label"></div>
@@ -317,11 +333,12 @@
   }
 
   async function asegurarVentasActualizadas() {
-    // Solo re-fetcha si no tenemos datos de hoy — el refresh explícito es para actualizar
     const ahoraAR = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
     const pad = n => String(n).padStart(2, "0");
     const hoyStr = `${ahoraAR.getFullYear()}-${pad(ahoraAR.getMonth()+1)}-${pad(ahoraAR.getDate())}`;
-    if (ventasData && ventasData.hoy && ventasData.hoy.fecha === hoyStr) return;
+    const dosHorasMs = 2 * 60 * 60 * 1000;
+    const datosRecientes = (Date.now() - ultimaLecturaVentasMs) < dosHorasMs;
+    if (ventasData && ventasData.hoy && ventasData.hoy.fecha === hoyStr && datosRecientes) return;
 
 
     try {
@@ -429,10 +446,11 @@
     const hoyStr  = toDateStr(ahoraAR);
     const ayerStr = toDateStr(new Date(ahoraAR.getTime() - 86400000));
 
-    const acum = {
-      [hoyStr]:  { total: 0, cant: 0 },
-      [ayerStr]: { total: 0, cant: 0 }
-    };
+    const acum = {};
+    for (let i = 0; i < 30; i++) {
+      const d = toDateStr(new Date(ahoraAR.getTime() - i * 86400000));
+      acum[d] = { total: 0, cant: 0 };
+    }
 
     const ordenesVistas = new Set();
 
@@ -472,11 +490,16 @@
       variacion = Math.round(((hoy.total - ayer.total) / ayer.total) * 1000) / 10;
     }
 
+    const diasRecientes = Object.entries(acum)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([fecha, d]) => ({ fecha, total: Math.round(d.total), cantidad: d.cant }));
+
     ventasData = {
       actualizadoEn: fechaReal,
       hoy:  { fecha: hoyStr,  total: Math.round(hoy.total),  cantidad: hoy.cant },
       ayer: { fecha: ayerStr, total: Math.round(ayer.total), cantidad: ayer.cant },
-      variacion
+      variacion,
+      diasRecientes
     };
 
     renderVentas(permitirPersistir);
@@ -504,6 +527,7 @@
       "Datos al " + fmtFechaReal(v.actualizadoEn);
 
     if (permitirPersistir) guardarVentasLocal();
+    renderChart();
   }
 
   async function leerVentasSheet() {
@@ -728,7 +752,7 @@
     show("screen-content");
 
     const lastTab = localStorage.getItem("hechizo_tab");
-    if (lastTab === "ventas") switchTab("ventas");
+    if (lastTab !== "resultados") switchTab("ventas");
   }
 
   function renderTabs() {
@@ -857,6 +881,79 @@
   if (localStorage.getItem("hechizo_theme") === "light") {
     document.body.classList.add("light");
     document.getElementById("theme-btn").textContent = "🌙";
+  }
+
+  let chartInstance = null;
+  let chartRange = 7;
+
+  function switchChartRange(days) {
+    chartRange = days;
+    document.getElementById("chart-btn-7").classList.toggle("active", days === 7);
+    document.getElementById("chart-btn-30").classList.toggle("active", days === 30);
+    renderChart();
+  }
+
+  function renderChart() {
+    if (!ventasData || !ventasData.diasRecientes) return;
+    const wrap = document.getElementById("chart-wrap");
+    if (!wrap) return;
+    wrap.classList.remove("hidden");
+
+    const dias = ventasData.diasRecientes.slice(-chartRange);
+    const isLight = document.body.classList.contains("light");
+    const gridColor = isLight ? "rgba(0,0,0,.06)" : "rgba(255,255,255,.05)";
+    const tickColor = isLight ? "#6b5b8a" : "#9d8ec0";
+    const barColor = isLight ? "rgba(124,58,237,.55)" : "rgba(192,132,252,.55)";
+    const barBorder = isLight ? "rgba(124,58,237,1)" : "rgba(192,132,252,1)";
+
+    const labels = dias.map(d => {
+      const [, m, day] = d.fecha.split("-");
+      return `${parseInt(day)}/${parseInt(m)}`;
+    });
+    const data = dias.map(d => d.total);
+
+    const ctx = document.getElementById("ventas-chart").getContext("2d");
+    if (chartInstance) chartInstance.destroy();
+
+    chartInstance = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: barColor,
+          borderColor: barBorder,
+          borderWidth: 1,
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => "$" + Math.round(ctx.raw).toLocaleString("es-AR")
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: tickColor, font: { size: 10 }, maxRotation: 0 },
+            grid: { display: false }
+          },
+          y: {
+            ticks: {
+              color: tickColor,
+              font: { size: 10 },
+              callback: v => v >= 1000 ? "$" + Math.round(v / 1000) + "K" : "$" + v
+            },
+            grid: { color: gridColor }
+          }
+        }
+      }
+    });
   }
 
   restaurarVentasLocal();
