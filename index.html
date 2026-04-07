@@ -188,7 +188,6 @@
   const API_KEY       = "AIzaSyDPSPGFE6NGthBfEJtWIEnZ-LxcKJJFZjI";
   const SHEET_ID      = "1nUWfj9u0y7M7n2fNG6v55WnIxAedPpBxQZFUXk28nlI";
   const SHEET_NAME    = String(new Date().getFullYear());
-  const VENTAS_SHEET  = "Ventas_diarias";
   const VENTAS_URL    = "https://hechizo-ventas-service-production.up.railway.app/ventas";
   const TRIGGER_RANGE = "Trigger!A1";
   const STATUS_RANGE  = "Trigger!A2";
@@ -382,18 +381,17 @@
           } catch (e) {}
         }
 
-        // 2. Sheets: historial de los últimos 30 días para el gráfico
-        const range = encodeURIComponent(VENTAS_SHEET);
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&t=${Date.now()}`;
-        const res = await fetch(url, { cache: "no-store" });
-        if (!res.ok) throw new Error("Error " + res.status);
-        const json = await res.json();
+        // 2. Supabase (vía Railway): historial de los últimos 45 días para el gráfico
+        const histRes = await fetch(`${RAILWAY_URL}/historico?t=${Date.now()}`, { cache: "no-store" });
+        if (!histRes.ok) throw new Error("Error historico " + histRes.status);
+        const histJson = await histRes.json();
+        if (!histJson.ok) throw new Error(histJson.error || "Error historico");
 
         const fechaReal = railwayTs || appData?.actualizadoEn || await obtenerFechaGeneral(false) || new Date().toISOString();
 
-        // procesarVentas construye diasRecientes desde Sheets.
+        // procesarVentasDB construye diasRecientes desde Supabase.
         // Si Railway funcionó, saltamos el render intermedio (evita mostrar 0 un instante)
-        procesarVentas(json.values, fechaReal, !railwayHoy, !!railwayHoy);
+        procesarVentasDB(histJson.dias, fechaReal, !railwayHoy, !!railwayHoy);
 
         // 3. Pisar hoy y ayer en cards Y en las barras del gráfico con datos de Railway
         if (railwayHoy && ventasData) {
@@ -428,84 +426,32 @@
     return ventasRefreshPromise;
   }
 
-  function procesarVentas(rows, fechaReal = null, permitirPersistir = true, skipRender = false) {
-    if (!rows || rows.length < 2) {
+  function procesarVentasDB(dias, fechaReal = null, permitirPersistir = true, skipRender = false) {
+    if (!dias || !dias.length) {
       document.getElementById("ventas-actualizado").textContent = "Sin datos disponibles";
-      return;
-    }
-
-    const headers = rows[0].map(h => String(h).trim());
-    const iOrden = headers.findIndex(h => h.toLowerCase().includes("número de orden") || h.toLowerCase().includes("numero de orden"));
-    const iDate  = headers.findIndex(h => h.toLowerCase() === "fecha");
-    const iPago  = headers.findIndex(h => h.toLowerCase().includes("estado del pago"));
-    const iTotal = headers.findIndex(h => h.toLowerCase() === "total");
-
-    if (iDate === -1 || iTotal === -1) {
-      document.getElementById("ventas-actualizado").textContent = "Error: columnas no encontradas";
       return;
     }
 
     const ahoraAR = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
     const pad = n => String(n).padStart(2, "0");
     const toDateStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-
     const hoyStr  = toDateStr(ahoraAR);
     const ayerStr = toDateStr(new Date(ahoraAR.getTime() - 86400000));
 
-    const acum = {};
-    for (let i = 0; i < 30; i++) {
-      const d = toDateStr(new Date(ahoraAR.getTime() - i * 86400000));
-      acum[d] = { total: 0, cant: 0 };
-    }
-
-    const ordenesVistas = new Set();
-
-    for (let r = 1; r < rows.length; r++) {
-      const row = rows[r];
-      const rawFecha = String(row[iDate] || "").trim();
-      const estadoPago = String(row[iPago] || "").trim();
-      const rawTotal = String(row[iTotal] || "").trim();
-      const numOrden = iOrden >= 0 ? String(row[iOrden] || "").trim() : "";
-
-      if (!rawFecha || !rawTotal) continue;
-      if (estadoPago === "Cancelada" || estadoPago === "cancelled") continue;
-
-      if (numOrden && ordenesVistas.has(numOrden)) continue;
-      if (numOrden) ordenesVistas.add(numOrden);
-
-      let diaStr = "";
-      const matchDMY = rawFecha.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-      const matchYMD = rawFecha.match(/^(\d{4})-(\d{2})-(\d{2})/);
-
-      if (matchDMY) diaStr = `${matchDMY[3]}-${matchDMY[2]}-${matchDMY[1]}`;
-      else if (matchYMD) diaStr = `${matchYMD[1]}-${matchYMD[2]}-${matchYMD[3]}`;
-      else continue;
-
-      if (!acum[diaStr]) continue;
-
-      const total = parseFloat(rawTotal.replace(/[^0-9.-]/g, "")) || 0;
-      acum[diaStr].total += total;
-      acum[diaStr].cant += 1;
-    }
-
-    const hoy = acum[hoyStr];
-    const ayer = acum[ayerStr];
+    const hoyEntry  = dias.find(d => d.fecha === hoyStr)  || { total: 0, cantidad: 0 };
+    const ayerEntry = dias.find(d => d.fecha === ayerStr) || { total: 0, cantidad: 0 };
 
     let variacion = null;
-    if (ayer.total > 0) {
-      variacion = Math.round(((hoy.total - ayer.total) / ayer.total) * 1000) / 10;
+    if (ayerEntry.total > 0) {
+      variacion = Math.round(((hoyEntry.total - ayerEntry.total) / ayerEntry.total) * 1000) / 10;
     }
-
-    const diasRecientes = Object.entries(acum)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([fecha, d]) => ({ fecha, total: Math.round(d.total), cantidad: d.cant }));
 
     ventasData = {
       actualizadoEn: fechaReal,
-      hoy:  { fecha: hoyStr,  total: Math.round(hoy.total),  cantidad: hoy.cant },
-      ayer: { fecha: ayerStr, total: Math.round(ayer.total), cantidad: ayer.cant },
+      hoy:  { fecha: hoyStr,  total: hoyEntry.total,  cantidad: hoyEntry.cantidad },
+      ayer: { fecha: ayerStr, total: ayerEntry.total, cantidad: ayerEntry.cantidad },
       variacion,
-      diasRecientes
+      diasRecientes: dias
     };
 
     if (!skipRender) renderVentas(permitirPersistir);
