@@ -589,6 +589,7 @@
           stepEl.textContent = "Railway / Completado";
           status.textContent = "Recargando datos...";
           await cargarDatos();
+          await cargarVentas({ silent: true });
           btn.disabled = false;
           btn.textContent = "↻ Refrescar resultados";
           status.textContent = "Datos al " + fmtFechaReal(appData?.actualizadoEn);
