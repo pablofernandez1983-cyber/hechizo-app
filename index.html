@@ -401,10 +401,15 @@
             ? Math.round(((railwayHoy.total - railwayAyer.total) / railwayAyer.total) * 1000) / 10
             : null;
           if (ventasData.diasRecientes) {
+            let foundHoy = false, foundAyer = false;
             for (const d of ventasData.diasRecientes) {
-              if (d.fecha === railwayHoy.fecha)  { d.total = railwayHoy.total;  d.cantidad = railwayHoy.cantidad;  }
-              if (d.fecha === railwayAyer.fecha)  { d.total = railwayAyer.total; d.cantidad = railwayAyer.cantidad; }
+              if (d.fecha === railwayHoy.fecha)  { d.total = railwayHoy.total;  d.cantidad = railwayHoy.cantidad;  foundHoy  = true; }
+              if (d.fecha === railwayAyer.fecha) { d.total = railwayAyer.total; d.cantidad = railwayAyer.cantidad; foundAyer = true; }
             }
+            // Si Supabase aún no tiene hoy/ayer (reporte no corrió), los insertamos igual
+            if (!foundHoy)  ventasData.diasRecientes.push({ fecha: railwayHoy.fecha,  total: railwayHoy.total,  cantidad: railwayHoy.cantidad });
+            if (!foundAyer) ventasData.diasRecientes.push({ fecha: railwayAyer.fecha, total: railwayAyer.total, cantidad: railwayAyer.cantidad });
+            ventasData.diasRecientes.sort((a, b) => a.fecha.localeCompare(b.fecha));
           }
           renderVentas(true);
         }
