@@ -243,13 +243,17 @@
 
   function parsearFechaEstado(valor) {
     if (!valor) return null;
-    const texto = String(valor).trim();
+    const texto = String(valor).trim().replace(/^OK\s*/i, "");
 
     const iso = texto.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[+-]\d{2}:\d{2}|Z)?/);
     if (iso) return iso[0];
 
     const normal = texto.match(/(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})/);
     if (normal) return `${normal[1]}T${normal[2]}`;
+
+    // Formato argentino: DD/MM/YYYY HH:MM (el que escribe escribir_trigger)
+    const arg = texto.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}:\d{2})/);
+    if (arg) return `${arg[3]}-${arg[2]}-${arg[1]}T${arg[4]}:00-03:00`;
 
     return texto;
   }
