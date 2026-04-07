@@ -397,14 +397,23 @@
         // Si Railway funcionó, saltamos el render intermedio (evita mostrar 0 un instante)
         procesarVentasDB(histJson.dias, fechaReal, !railwayHoy, !!railwayHoy);
 
-        // 3. Pisar hoy y ayer en las CARDS con datos en tiempo real (Railway)
-        // Las barras del gráfico usan solo Supabase para ser consistentes con el P&L
+        // 3. Pisar hoy y ayer en cards Y barras del gráfico con datos en tiempo real
         if (railwayHoy && ventasData) {
           ventasData.hoy  = railwayHoy;
           ventasData.ayer = railwayAyer;
           ventasData.variacion = railwayAyer.total > 0
             ? Math.round(((railwayHoy.total - railwayAyer.total) / railwayAyer.total) * 1000) / 10
             : null;
+          if (ventasData.diasRecientes) {
+            let foundHoy = false, foundAyer = false;
+            for (const d of ventasData.diasRecientes) {
+              if (d.fecha === railwayHoy.fecha)  { d.total = railwayHoy.total;  d.cantidad = railwayHoy.cantidad;  foundHoy  = true; }
+              if (d.fecha === railwayAyer.fecha) { d.total = railwayAyer.total; d.cantidad = railwayAyer.cantidad; foundAyer = true; }
+            }
+            if (!foundHoy)  ventasData.diasRecientes.push({ fecha: railwayHoy.fecha,  total: railwayHoy.total,  cantidad: railwayHoy.cantidad });
+            if (!foundAyer) ventasData.diasRecientes.push({ fecha: railwayAyer.fecha, total: railwayAyer.total, cantidad: railwayAyer.cantidad });
+            ventasData.diasRecientes.sort((a, b) => a.fecha.localeCompare(b.fecha));
+          }
           renderVentas(true);
         }
 
