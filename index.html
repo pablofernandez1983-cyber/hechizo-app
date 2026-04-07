@@ -537,7 +537,8 @@
   }
 
   async function leerVentasSheet() {
-    if (ventasRestauradasLocalmente) return;
+    // Siempre actualizar desde Sheets, aunque haya caché local.
+    // El caché solo sirve para el render inicial; los datos frescos lo pisan después.
     await cargarVentas({ silent: true, mostrarSpinner: false });
   }
 
