@@ -385,17 +385,32 @@
           } catch (e) {}
         }
 
-        // 2. Supabase (vía Railway): historial de los últimos 45 días para el gráfico
-        const histRes = await fetch(`${RAILWAY_URL}/historico?t=${Date.now()}`, { cache: "no-store" });
+        // 2. Supabase (vía Railway): historial de los últimos 45 días para el gráfico + totales mensuales
+        const [histRes, mensualRes] = await Promise.all([
+          fetch(`${RAILWAY_URL}/historico?t=${Date.now()}`, { cache: "no-store" }),
+          fetch(`${RAILWAY_URL}/historico-mensual?t=${Date.now()}`, { cache: "no-store" }),
+        ]);
         if (!histRes.ok) throw new Error("Error historico " + histRes.status);
         const histJson = await histRes.json();
         if (!histJson.ok) throw new Error(histJson.error || "Error historico");
+
+        // cantidadPorMes: { "2026-1": 342, "2026-2": 418, ... }
+        let cantidadPorMes = {};
+        if (mensualRes.ok) {
+          const mensualJson = await mensualRes.json();
+          if (mensualJson.ok) {
+            for (const m of mensualJson.meses) {
+              cantidadPorMes[`${m.anio}-${m.mes}`] = m.cantidad;
+            }
+          }
+        }
 
         const fechaReal = railwayTs || appData?.actualizadoEn || await obtenerFechaGeneral(false) || new Date().toISOString();
 
         // procesarVentasDB construye diasRecientes desde Supabase.
         // Si Railway funcionó, saltamos el render intermedio (evita mostrar 0 un instante)
         procesarVentasDB(histJson.dias, fechaReal, !railwayHoy, !!railwayHoy);
+        if (ventasData) ventasData.cantidadPorMes = cantidadPorMes;
 
         // 3. Pisar hoy y ayer en cards Y barras del gráfico con datos en tiempo real
         if (railwayHoy && ventasData) {
@@ -741,10 +756,8 @@
     const margen = ingresos ? ((resultado / ingresos) * 100).toFixed(1) : 0;
 
     const [pAnio, pMes] = String(periodo).split(/[,\.]/);
-    const mesPrefix = pAnio + "-" + String(parseInt(pMes, 10)).padStart(2, "0");
-    const cantidadMes = (ventasData?.diasRecientes || [])
-      .filter(d => d.fecha.startsWith(mesPrefix))
-      .reduce((s, d) => s + (d.cantidad || 0), 0);
+    const mesKey = `${parseInt(pAnio, 10)}-${parseInt(pMes, 10)}`;
+    const cantidadMes = ventasData?.cantidadPorMes?.[mesKey] || 0;
 
     const egresos = Object.entries(vals)
       .filter(([k]) => LABELS[k] && LABELS[k].tipo === "egreso")
