@@ -350,7 +350,19 @@
   }
 
   async function cargarVentas({ silent = false, mostrarSpinner = false } = {}) {
-    if (ventasRefreshPromise) return ventasRefreshPromise;
+    if (ventasRefreshPromise) {
+      if (mostrarSpinner) {
+        // El usuario hizo click pero ya hay una carga en curso — mostrar spinner igual
+        const btn = document.getElementById("ventas-btn");
+        btn.innerHTML = '<span class="ventas-spinner"></span>Actualizando...';
+        btn.disabled = true;
+        ventasRefreshPromise.finally(() => {
+          btn.innerHTML = '↻ Refrescar ventas';
+          btn.disabled = false;
+        });
+      }
+      return ventasRefreshPromise;
+    }
 
     const btn = document.getElementById("ventas-btn");
     const textoOriginal = btn.innerHTML;
