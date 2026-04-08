@@ -410,7 +410,11 @@
         // procesarVentasDB construye diasRecientes desde Supabase.
         // Si Railway funcionó, saltamos el render intermedio (evita mostrar 0 un instante)
         procesarVentasDB(histJson.dias, fechaReal, !railwayHoy, !!railwayHoy);
-        if (ventasData) ventasData.cantidadPorMes = cantidadPorMes;
+        if (ventasData) {
+          ventasData.cantidadPorMes = cantidadPorMes;
+          // Re-renderizar Resultados si ya está cargado, para mostrar la cantidad
+          if (appData && periodoActivo) mostrar(periodoActivo);
+        }
 
         // 3. Pisar hoy y ayer en cards Y barras del gráfico con datos en tiempo real
         if (railwayHoy && ventasData) {
