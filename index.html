@@ -381,27 +381,29 @@
 
     ventasRefreshPromise = (async () => {
       try {
-        // 1. Railway: hoy y ayer en tiempo real
-        let railwayHoy = null, railwayAyer = null, railwayTs = null;
-        if (VENTAS_URL && !VENTAS_URL.includes("TU_RAILWAY")) {
-          try {
-            const rr = await fetch(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" });
-            if (rr.ok) {
-              const rj = await rr.json();
-              if (rj.ok && rj.hoy && rj.ayer) {
-                railwayHoy = rj.hoy;
-                railwayAyer = rj.ayer;
-                railwayTs = rj.actualizadoEn || new Date().toISOString();
-              }
-            }
-          } catch (e) {}
-        }
+        // Todos los fetches en paralelo: TiendaNube no bloquea a Supabase
+        const ventasPromise = (VENTAS_URL && !VENTAS_URL.includes("TU_RAILWAY"))
+          ? fetch(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" }).catch(() => null)
+          : Promise.resolve(null);
 
-        // 2. Supabase (vía Railway): historial de los últimos 45 días para el gráfico + totales mensuales
-        const [histRes, mensualRes] = await Promise.all([
+        const [ventasRes, histRes, mensualRes] = await Promise.all([
+          ventasPromise,
           fetch(`${RAILWAY_URL}/historico?t=${Date.now()}`, { cache: "no-store" }),
           fetch(`${RAILWAY_URL}/historico-mensual?t=${Date.now()}`, { cache: "no-store" }),
         ]);
+
+        // 1. Procesar datos de TiendaNube (hoy/ayer en tiempo real)
+        let railwayHoy = null, railwayAyer = null, railwayTs = null;
+        try {
+          if (ventasRes?.ok) {
+            const rj = await ventasRes.json();
+            if (rj.ok && rj.hoy && rj.ayer) {
+              railwayHoy = rj.hoy;
+              railwayAyer = rj.ayer;
+              railwayTs = rj.actualizadoEn || new Date().toISOString();
+            }
+          }
+        } catch (e) {}
         if (!histRes.ok) throw new Error("Error historico " + histRes.status);
         const histJson = await histRes.json();
         if (!histJson.ok) throw new Error(histJson.error || "Error historico");
