@@ -381,34 +381,17 @@
 
     ventasRefreshPromise = (async () => {
       try {
-        // Todos los fetches en paralelo: TiendaNube no bloquea a Supabase
-        const ventasPromise = (VENTAS_URL && !VENTAS_URL.includes("TU_RAILWAY"))
-          ? fetch(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" }).catch(() => null)
-          : Promise.resolve(null);
-
-        const [ventasRes, histRes, mensualRes] = await Promise.all([
-          ventasPromise,
+        // Supabase y TiendaNube arrancan juntos pero se procesan independientemente.
+        // Supabase (rápido) no espera a TiendaNube (lento/colgado).
+        const [histRes, mensualRes] = await Promise.all([
           fetch(`${RAILWAY_URL}/historico?t=${Date.now()}`, { cache: "no-store" }),
           fetch(`${RAILWAY_URL}/historico-mensual?t=${Date.now()}`, { cache: "no-store" }),
         ]);
-
-        // 1. Procesar datos de TiendaNube (hoy/ayer en tiempo real)
-        let railwayHoy = null, railwayAyer = null, railwayTs = null;
-        try {
-          if (ventasRes?.ok) {
-            const rj = await ventasRes.json();
-            if (rj.ok && rj.hoy && rj.ayer) {
-              railwayHoy = rj.hoy;
-              railwayAyer = rj.ayer;
-              railwayTs = rj.actualizadoEn || new Date().toISOString();
-            }
-          }
-        } catch (e) {}
         if (!histRes.ok) throw new Error("Error historico " + histRes.status);
         const histJson = await histRes.json();
         if (!histJson.ok) throw new Error(histJson.error || "Error historico");
 
-        // cantidadPorMes: { "2026-1": 342, "2026-2": 418, ... }
+        // cantidadPorMes desde Supabase — independiente de TiendaNube
         let cantidadPorMes = {};
         if (mensualRes.ok) {
           const mensualJson = await mensualRes.json();
@@ -419,35 +402,39 @@
           }
         }
 
-        const fechaReal = railwayTs || appData?.actualizadoEn || await obtenerFechaGeneral(false) || new Date().toISOString();
+        const fechaReal = appData?.actualizadoEn || await obtenerFechaGeneral(false) || new Date().toISOString();
 
-        // procesarVentasDB construye diasRecientes desde Supabase.
-        // Si Railway funcionó, saltamos el render intermedio (evita mostrar 0 un instante)
-        procesarVentasDB(histJson.dias, fechaReal, !railwayHoy, !!railwayHoy);
+        // Renderizar con datos de Supabase (sin esperar TiendaNube)
+        procesarVentasDB(histJson.dias, fechaReal, true, false);
         if (ventasData) {
           ventasData.cantidadPorMes = cantidadPorMes;
-          // Re-renderizar Resultados si ya está cargado, para mostrar la cantidad
           if (appData && periodoActivo) mostrar(periodoActivo);
         }
 
-        // 3. Pisar hoy y ayer en cards Y barras del gráfico con datos en tiempo real
-        if (railwayHoy && ventasData) {
-          ventasData.hoy  = railwayHoy;
-          ventasData.ayer = railwayAyer;
-          ventasData.variacion = railwayAyer.total > 0
-            ? Math.round(((railwayHoy.total - railwayAyer.total) / railwayAyer.total) * 1000) / 10
-            : null;
-          if (ventasData.diasRecientes) {
-            let foundHoy = false, foundAyer = false;
-            for (const d of ventasData.diasRecientes) {
-              if (d.fecha === railwayHoy.fecha)  { d.total = railwayHoy.total;  d.cantidad = railwayHoy.cantidad;  foundHoy  = true; }
-              if (d.fecha === railwayAyer.fecha) { d.total = railwayAyer.total; d.cantidad = railwayAyer.cantidad; foundAyer = true; }
-            }
-            if (!foundHoy)  ventasData.diasRecientes.push({ fecha: railwayHoy.fecha,  total: railwayHoy.total,  cantidad: railwayHoy.cantidad });
-            if (!foundAyer) ventasData.diasRecientes.push({ fecha: railwayAyer.fecha, total: railwayAyer.total, cantidad: railwayAyer.cantidad });
-            ventasData.diasRecientes.sort((a, b) => a.fecha.localeCompare(b.fecha));
-          }
-          renderVentas(true);
+        // TiendaNube: fire-and-forget — pisa hoy/ayer cuando llega, sin bloquear
+        if (VENTAS_URL && !VENTAS_URL.includes("TU_RAILWAY")) {
+          fetch(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" })
+            .then(rr => rr.ok ? rr.json() : null)
+            .then(rj => {
+              if (!rj?.ok || !rj.hoy || !rj.ayer || !ventasData) return;
+              ventasData.hoy  = rj.hoy;
+              ventasData.ayer = rj.ayer;
+              ventasData.variacion = rj.ayer.total > 0
+                ? Math.round(((rj.hoy.total - rj.ayer.total) / rj.ayer.total) * 1000) / 10
+                : null;
+              if (ventasData.diasRecientes) {
+                let foundHoy = false, foundAyer = false;
+                for (const d of ventasData.diasRecientes) {
+                  if (d.fecha === rj.hoy.fecha)  { d.total = rj.hoy.total;  d.cantidad = rj.hoy.cantidad;  foundHoy  = true; }
+                  if (d.fecha === rj.ayer.fecha) { d.total = rj.ayer.total; d.cantidad = rj.ayer.cantidad; foundAyer = true; }
+                }
+                if (!foundHoy)  ventasData.diasRecientes.push({ fecha: rj.hoy.fecha,  total: rj.hoy.total,  cantidad: rj.hoy.cantidad });
+                if (!foundAyer) ventasData.diasRecientes.push({ fecha: rj.ayer.fecha, total: rj.ayer.total, cantidad: rj.ayer.cantidad });
+                ventasData.diasRecientes.sort((a, b) => a.fecha.localeCompare(b.fecha));
+              }
+              renderVentas(true);
+            })
+            .catch(() => {});
         }
 
         ultimaLecturaVentasMs = Date.now();
