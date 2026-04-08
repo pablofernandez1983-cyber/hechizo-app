@@ -194,6 +194,7 @@
 
   const STORAGE_VENTAS_KEY = "hechizo_ventas_data";
   const STORAGE_VENTAS_TS_KEY = "hechizo_ventas_ts";
+  const STORAGE_CANT_MES_KEY = "hechizo_cant_por_mes";
 
   const LABELS = {
     "Ingresos":                   { label:"Ingresos",         tipo:"ingreso" },
@@ -256,6 +257,24 @@
     if (arg) return `${arg[3]}-${arg[2]}-${arg[1]}T${arg[4]}:00-03:00`;
 
     return texto;
+  }
+
+  function fetchConTimeout(url, ms = 12000) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, { cache: "no-store", signal: ctrl.signal })
+      .finally(() => clearTimeout(timer));
+  }
+
+  function guardarCantidadPorMes(mapa) {
+    try { localStorage.setItem(STORAGE_CANT_MES_KEY, JSON.stringify(mapa)); } catch (e) {}
+  }
+
+  function restaurarCantidadPorMes() {
+    try {
+      const raw = localStorage.getItem(STORAGE_CANT_MES_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
   }
 
   function guardarVentasLocal() {
@@ -373,7 +392,7 @@
         let railwayHoy = null, railwayAyer = null, railwayTs = null;
         if (VENTAS_URL && !VENTAS_URL.includes("TU_RAILWAY")) {
           try {
-            const rr = await fetch(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" });
+            const rr = await fetchConTimeout(VENTAS_URL + "?t=" + Date.now());
             if (rr.ok) {
               const rj = await rr.json();
               if (rj.ok && rj.hoy && rj.ayer) {
@@ -387,21 +406,23 @@
 
         // 2. Supabase (vía Railway): historial de los últimos 45 días para el gráfico + totales mensuales
         const [histRes, mensualRes] = await Promise.all([
-          fetch(`${RAILWAY_URL}/historico?t=${Date.now()}`, { cache: "no-store" }),
-          fetch(`${RAILWAY_URL}/historico-mensual?t=${Date.now()}`, { cache: "no-store" }),
+          fetchConTimeout(`${RAILWAY_URL}/historico?t=${Date.now()}`),
+          fetchConTimeout(`${RAILWAY_URL}/historico-mensual?t=${Date.now()}`),
         ]);
         if (!histRes.ok) throw new Error("Error historico " + histRes.status);
         const histJson = await histRes.json();
         if (!histJson.ok) throw new Error(histJson.error || "Error historico");
 
         // cantidadPorMes: { "2026-1": 342, "2026-2": 418, ... }
-        let cantidadPorMes = {};
+        let cantidadPorMes = restaurarCantidadPorMes() || {};
         if (mensualRes.ok) {
           const mensualJson = await mensualRes.json();
-          if (mensualJson.ok) {
+          if (mensualJson.ok && mensualJson.meses?.length) {
+            cantidadPorMes = {};
             for (const m of mensualJson.meses) {
               cantidadPorMes[`${m.anio}-${m.mes}`] = m.cantidad;
             }
+            guardarCantidadPorMes(cantidadPorMes);
           }
         }
 
