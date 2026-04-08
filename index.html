@@ -740,6 +740,12 @@
     const estReal = vals["Estimacion Resultado Real"] || 0;
     const margen = ingresos ? ((resultado / ingresos) * 100).toFixed(1) : 0;
 
+    const [pAnio, pMes] = String(periodo).split(/[,\.]/);
+    const mesPrefix = pAnio + "-" + String(parseInt(pMes, 10)).padStart(2, "0");
+    const cantidadMes = (ventasData?.diasRecientes || [])
+      .filter(d => d.fecha.startsWith(mesPrefix))
+      .reduce((s, d) => s + (d.cantidad || 0), 0);
+
     const egresos = Object.entries(vals)
       .filter(([k]) => LABELS[k] && LABELS[k].tipo === "egreso")
       .map(([k, v]) => ({ key: k, nombre: LABELS[k].label, valor: Math.abs(v) }))
@@ -759,10 +765,17 @@
     const egresosDetalle  = egresos.map(e => renderDetalle(e.key)).join("");
 
     document.getElementById("main-content").innerHTML = `
-      <div class="hero-card">
-        <div class="hero-label">Resultado neto</div>
-        <div class="hero-value">${fmt(resultado)}</div>
-        <div class="hero-margin">Est. Resultado Real: <span class="${estReal < 0 ? "" : ""}${estReal < 0 ? "color:#f87171" : "color:#34d399"}">${estReal < 0 ? "-" : ""}${fmt(estReal)}</span></div>
+      <div class="kpi-row">
+        <div class="hero-card">
+          <div class="hero-label">Resultado neto</div>
+          <div class="hero-value" style="font-size:28px">${fmt(resultado)}</div>
+          <div class="hero-margin">Est. Resultado Real: <span class="${estReal < 0 ? "" : ""}${estReal < 0 ? "color:#f87171" : "color:#34d399"}">${estReal < 0 ? "-" : ""}${fmt(estReal)}</span></div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-label">Ventas del mes</div>
+          <div class="hero-value" style="font-size:28px">${cantidadMes > 0 ? cantidadMes.toLocaleString("es-AR") : "—"}</div>
+          <div class="hero-margin">pedidos pagados</div>
+        </div>
       </div>
       <div class="breakdown-card">
         <div class="breakdown-row" onclick="toggleDetalle(this)">
