@@ -371,6 +371,7 @@
           if (!foundAyer) ventasData.diasRecientes.push({ fecha: rj.ayer.fecha, total: rj.ayer.total, cantidad: rj.ayer.cantidad });
           ventasData.diasRecientes.sort((a, b) => a.fecha.localeCompare(b.fecha));
         }
+        ventasData.actualizadoEn = new Date().toISOString();
         renderVentas(true);
         ultimaLecturaVentasMs = Date.now();
       } else {
