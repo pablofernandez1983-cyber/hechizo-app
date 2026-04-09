@@ -648,7 +648,7 @@
           stepEl.textContent = "Railway / Completado";
           status.textContent = "Recargando datos...";
           await cargarDatos();
-          await cargarVentas({ silent: true });
+          cargarVentas({ silent: true }); // fire-and-forget, no bloquea la UI
           btn.disabled = false;
           btn.textContent = "↻ Refrescar resultados";
           status.textContent = "Datos al " + fmtFechaReal(appData?.actualizadoEn);
