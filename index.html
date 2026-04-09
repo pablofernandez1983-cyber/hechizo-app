@@ -346,7 +346,42 @@
   }
 
   async function refrescarVentas() {
-    await cargarVentas({ silent: false, mostrarSpinner: true });
+    // Solo actualiza hoy/ayer desde TiendaNube — sin tocar Supabase
+    if (!VENTAS_URL || VENTAS_URL.includes("TU_RAILWAY")) return;
+    if (!ventasData) { await cargarVentas({ silent: false }); return; }
+    const btn = document.getElementById("ventas-btn");
+    btn.innerHTML = '<span class="ventas-spinner"></span>Actualizando...';
+    btn.disabled = true;
+    try {
+      const rr = await fetch(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" });
+      const rj = rr.ok ? await rr.json() : null;
+      if (rj?.ok && rj.hoy && rj.ayer) {
+        ventasData.hoy  = rj.hoy;
+        ventasData.ayer = rj.ayer;
+        ventasData.variacion = rj.ayer.total > 0
+          ? Math.round(((rj.hoy.total - rj.ayer.total) / rj.ayer.total) * 1000) / 10
+          : null;
+        if (ventasData.diasRecientes) {
+          let foundHoy = false, foundAyer = false;
+          for (const d of ventasData.diasRecientes) {
+            if (d.fecha === rj.hoy.fecha)  { d.total = rj.hoy.total;  d.cantidad = rj.hoy.cantidad;  foundHoy  = true; }
+            if (d.fecha === rj.ayer.fecha) { d.total = rj.ayer.total; d.cantidad = rj.ayer.cantidad; foundAyer = true; }
+          }
+          if (!foundHoy)  ventasData.diasRecientes.push({ fecha: rj.hoy.fecha,  total: rj.hoy.total,  cantidad: rj.hoy.cantidad });
+          if (!foundAyer) ventasData.diasRecientes.push({ fecha: rj.ayer.fecha, total: rj.ayer.total, cantidad: rj.ayer.cantidad });
+          ventasData.diasRecientes.sort((a, b) => a.fecha.localeCompare(b.fecha));
+        }
+        renderVentas(true);
+        ultimaLecturaVentasMs = Date.now();
+      } else {
+        document.getElementById("ventas-actualizado").textContent = "Error al actualizar desde TiendaNube";
+      }
+    } catch (err) {
+      document.getElementById("ventas-actualizado").textContent = "Error: " + err.message;
+    } finally {
+      btn.innerHTML = '↻ Refrescar ventas';
+      btn.disabled = false;
+    }
   }
 
   async function cargarVentas({ silent = false, mostrarSpinner = false } = {}) {
