@@ -709,12 +709,14 @@
     try {
       const range = encodeURIComponent(SHEET_NAME);
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&valueRenderOption=UNFORMATTED_VALUE&t=${Date.now()}`;
-      const res = await fetch(url, { cache: "no-store" });
+      const [res, fechaGeneral] = await Promise.all([
+        fetch(url, { cache: "no-store" }),
+        obtenerFechaGeneral(true),
+      ]);
       if (!res.ok) throw new Error("Error " + res.status);
       const json = await res.json();
 
       cargarDetalle().then(() => { if (periodoActivo) mostrar(periodoActivo); }); // en paralelo, re-renderiza cuando llega
-      const fechaGeneral = await obtenerFechaGeneral(true);
       procesarDatos(json.values, fechaGeneral);
     } catch (err) {
       show("screen-error");
