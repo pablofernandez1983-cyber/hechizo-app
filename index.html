@@ -452,7 +452,11 @@
           fetch(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" })
             .then(rr => rr.ok ? rr.json() : null)
             .then(rj => {
-              if (!rj?.ok || !rj.hoy || !rj.ayer || !ventasData) return;
+              if (!rj?.ok || !rj.hoy || !rj.ayer || !ventasData) {
+                document.getElementById("ventas-actualizado").textContent =
+                  rj?.error ? "Error: " + rj.error : "Error al obtener datos de ventas";
+                return;
+              }
               ventasData.hoy  = rj.hoy;
               ventasData.ayer = rj.ayer;
               ventasData.variacion = rj.ayer.total > 0
@@ -468,9 +472,12 @@
                 if (!foundAyer) ventasData.diasRecientes.push({ fecha: rj.ayer.fecha, total: rj.ayer.total, cantidad: rj.ayer.cantidad });
                 ventasData.diasRecientes.sort((a, b) => a.fecha.localeCompare(b.fecha));
               }
+              ventasData.actualizadoEn = new Date().toISOString();
               renderVentas(true);
             })
-            .catch(() => {});
+            .catch(() => {
+              document.getElementById("ventas-actualizado").textContent = "Error al obtener datos de ventas";
+            });
         }
 
         ultimaLecturaVentasMs = Date.now();
@@ -511,7 +518,7 @@
     }
 
     ventasData = {
-      actualizadoEn: fechaReal,
+      actualizadoEn: null,  // Se actualiza solo cuando TiendaNube confirma hoy+ayer
       hoy:  { fecha: hoyStr,  total: hoyEntry.total,  cantidad: hoyEntry.cantidad },
       ayer: { fecha: ayerStr, total: ayerEntry.total, cantidad: ayerEntry.cantidad },
       variacion,
@@ -540,7 +547,7 @@
     }
 
     document.getElementById("ventas-actualizado").textContent =
-      "Datos al " + fmtFechaReal(v.actualizadoEn);
+      v.actualizadoEn ? "Datos al " + fmtFechaReal(v.actualizadoEn) : "Actualizando...";
 
     if (permitirPersistir) guardarVentasLocal();
     renderChart();
