@@ -576,8 +576,14 @@
   }
 
   async function leerVentasSheet() {
-    // Siempre actualizar desde Sheets, aunque haya caché local.
-    // El caché solo sirve para el render inicial; los datos frescos lo pisan después.
+    // Si ya hay datos de hoy en caché, no refrescar automáticamente.
+    // El refresco de TiendaNube queda bajo demanda (botón Refrescar ventas).
+    if (ventasData?.hoy) {
+      const ahoraAR = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
+      const pad = n => String(n).padStart(2, "0");
+      const hoyStr = `${ahoraAR.getFullYear()}-${pad(ahoraAR.getMonth()+1)}-${pad(ahoraAR.getDate())}`;
+      if (ventasData.hoy.fecha === hoyStr) return;
+    }
     await cargarVentas({ silent: true, mostrarSpinner: false });
   }
 
