@@ -146,7 +146,7 @@
         <div class="ventas-label">Ventas de hoy</div>
         <div class="ventas-value" id="ventas-hoy-total">—</div>
         <div class="ventas-sub" id="ventas-hoy-cant"></div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="ventas-hoy-pendiente"></div>
+        <div style="font-size:12px;color:#f59e0b;margin-top:3px;" id="ventas-hoy-pendiente"></div>
       </div>
       <div class="kpi-row">
         <div class="kpi-card">
@@ -376,6 +376,7 @@
         }
         ventasData.actualizadoEn = new Date().toISOString();
         renderVentas(true);
+        if (appData && periodoActivo) mostrar(periodoActivo);
         ultimaLecturaVentasMs = Date.now();
       } else {
         document.getElementById("ventas-actualizado").textContent = "Error al actualizar desde TiendaNube";
@@ -479,6 +480,7 @@
               }
               ventasData.actualizadoEn = new Date().toISOString();
               renderVentas(true);
+              if (appData && periodoActivo) mostrar(periodoActivo);
             })
             .catch(() => {
               document.getElementById("ventas-actualizado").textContent = "Error al obtener datos de ventas";
@@ -545,7 +547,7 @@
     if (pendHoyEl) {
       const ph = v.pendientes_hoy;
       pendHoyEl.textContent = (ph && ph.cantidad > 0)
-        ? fmt(ph.total) + " pendientes de pago (" + ph.cantidad + ")"
+        ? ph.cantidad + " pendientes de pago · " + fmt(ph.total)
         : "";
     }
 
