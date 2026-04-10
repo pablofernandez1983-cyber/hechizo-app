@@ -146,6 +146,7 @@
         <div class="ventas-label">Ventas de hoy</div>
         <div class="ventas-value" id="ventas-hoy-total">—</div>
         <div class="ventas-sub" id="ventas-hoy-cant"></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="ventas-hoy-pendiente"></div>
       </div>
       <div class="kpi-row">
         <div class="kpi-card">
@@ -358,6 +359,8 @@
       if (rj?.ok && rj.hoy && rj.ayer) {
         ventasData.hoy  = rj.hoy;
         ventasData.ayer = rj.ayer;
+        ventasData.pendientes_hoy = rj.pendientes_hoy || null;
+        ventasData.pendientes_mes = rj.pendientes_mes || null;
         ventasData.variacion = rj.ayer.total > 0
           ? Math.round(((rj.hoy.total - rj.ayer.total) / rj.ayer.total) * 1000) / 10
           : null;
@@ -459,6 +462,8 @@
               }
               ventasData.hoy  = rj.hoy;
               ventasData.ayer = rj.ayer;
+              ventasData.pendientes_hoy = rj.pendientes_hoy || null;
+              ventasData.pendientes_mes = rj.pendientes_mes || null;
               ventasData.variacion = rj.ayer.total > 0
                 ? Math.round(((rj.hoy.total - rj.ayer.total) / rj.ayer.total) * 1000) / 10
                 : null;
@@ -536,6 +541,13 @@
     document.getElementById("ventas-hoy-cant").textContent = v.hoy.cantidad + " pedidos pagados";
     document.getElementById("ventas-ayer-total").textContent = fmt(v.ayer.total);
     document.getElementById("ventas-ayer-cant").textContent = v.ayer.cantidad + " pedidos";
+    const pendHoyEl = document.getElementById("ventas-hoy-pendiente");
+    if (pendHoyEl) {
+      const ph = v.pendientes_hoy;
+      pendHoyEl.textContent = (ph && ph.cantidad > 0)
+        ? fmt(ph.total) + " pendientes de pago (" + ph.cantidad + ")"
+        : "";
+    }
 
     if (v.variacion !== null) {
       const signo = v.variacion >= 0 ? "+" : "";
@@ -808,6 +820,9 @@
     const [pAnio, pMes] = String(periodo).split(/[,\.]/);
     const mesKey = `${parseInt(pAnio, 10)}-${parseInt(pMes, 10)}`;
     const cantidadMes = ventasData?.cantidadPorMes?.[mesKey] || 0;
+    const ahoraAR = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
+    const esMesActual = parseInt(pAnio) === ahoraAR.getFullYear() && parseInt(pMes) === ahoraAR.getMonth() + 1;
+    const pendientesMes = esMesActual ? (ventasData?.pendientes_mes?.cantidad || 0) : 0;
 
     const egresos = Object.entries(vals)
       .filter(([k]) => LABELS[k] && LABELS[k].tipo === "egreso")
@@ -837,7 +852,7 @@
         <div class="hero-card">
           <div class="hero-label">Ventas del mes</div>
           <div class="hero-value" style="font-size:28px">${cantidadMes > 0 ? cantidadMes.toLocaleString("es-AR") : "—"}</div>
-          <div class="hero-margin">pedidos pagados</div>
+          <div class="hero-margin">pedidos pagados${pendientesMes > 0 ? ` &nbsp;·&nbsp; <span style="color:var(--muted)">${pendientesMes} pendientes de pago</span>` : ""}</div>
         </div>
       </div>
       <div class="breakdown-card">
