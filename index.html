@@ -338,12 +338,14 @@
   }
 
   async function asegurarVentasActualizadas() {
-    // Solo carga si no hay datos de hoy — nunca refresca automáticamente
     const ahoraAR = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
     const pad = n => String(n).padStart(2, "0");
     const hoyStr = `${ahoraAR.getFullYear()}-${pad(ahoraAR.getMonth()+1)}-${pad(ahoraAR.getDate())}`;
-    if (ventasData && ventasData.hoy && ventasData.hoy.fecha === hoyStr) return;
-    await cargarVentas({ silent: true });
+    const tieneHoy = ventasData?.hoy?.fecha === hoyStr;
+    const dosHorasMs = 2 * 60 * 60 * 1000;
+    const datosViejos = (Date.now() - ultimaLecturaVentasMs) >= dosHorasMs;
+    if (!tieneHoy) { await cargarVentas({ silent: true }); return; }
+    if (datosViejos) await refrescarVentas();  // tiene datos de hoy pero pasaron 2h → refresca TiendaNube
   }
 
   async function refrescarVentas() {
