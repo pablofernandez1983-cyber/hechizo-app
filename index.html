@@ -694,7 +694,7 @@
     } else {
       varPct = '<div style="font-size:11px;color:var(--muted);margin-top:4px">sin datos mes anterior</div>';
     }
-    const valCard = '<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 14px;text-align:right;min-width:160px;flex-shrink:0">'
+    const valCard = '<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 14px;text-align:right;min-width:150px;flex-shrink:0">'
       + '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:1px">Valuación del stock</div>'
       + '<div style="font-size:20px;font-weight:700;color:var(--success)">' + valFmt + '</div>'
       + varPct
@@ -703,21 +703,21 @@
     const mkChip = (n, label, color, filter, active) => {
       const border = active ? 'var(--success)' : 'var(--border)';
       const shadow = active ? ';box-shadow:0 0 0 1px var(--success)' : '';
-      return '<div style="background:var(--card);border:1px solid ' + border + ';border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;transition:border-color .15s' + shadow + '" data-filter="' + filter + '">'
-        + '<span style="font-weight:700;font-size:14px;display:block' + (color ? ';color:' + color : '') + '">' + n + '</span>'
+      return '<div style="background:var(--card);border:1px solid ' + border + ';border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer;transition:border-color .15s' + shadow + '" data-filter="' + filter + '">'
+        + '<span style="font-weight:700;font-size:13px;display:block' + (color ? ';color:' + color : '') + '">' + n + '</span>'
         + label + '</div>';
     };
 
-    const chipsLeft = '<div id="stock-chips" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
-      + mkChip(d.total, "todas", "", "", true)
-      + '<div style="width:1px;height:36px;background:var(--border);margin:0 2px;flex-shrink:0"></div>'
-      + '<span style="font-size:11px;color:var(--muted);white-space:nowrap">Cobertura:</span>'
-      + mkChip(n_red,    "&lt;7d",  "#f87171", "red",    false)
-      + mkChip(n_orange, "7-14d",  "#fb923c", "orange", false)
-      + mkChip(n_yellow, "14-21d", "#fbbf24", "yellow", false)
-      + '</div>';
+    const chipsLeft = '<div style="display:flex;flex-direction:column;gap:5px">'
+      + '<div style="font-size:11px;color:var(--muted)">Cobertura</div>'
+      + '<div id="stock-chips" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
+      + mkChip(d.total, "todas",  "", "",       true)
+      + mkChip(n_red,   "&lt;7d", "#f87171", "red",    false)
+      + mkChip(n_orange,"&lt;14d","#fb923c", "orange", false)
+      + mkChip(n_yellow,"&lt;21d","#fbbf24", "yellow", false)
+      + '</div></div>';
 
-    const chips = '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">'
+    const chips = '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap">'
       + chipsLeft + valCard + '</div>';
 
     const section = (title, bodyId, body, startOpen) => {
