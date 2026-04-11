@@ -681,26 +681,40 @@
     const n_yellow = d.alertas.filter(v => v.cobertura != null && v.cobertura >= 14).length;
 
     const valTotal = d.valuacion_total || 0;
+    const valMesAnt = d.valuacion_mes_anterior || null;
     const valFmt = "$ " + Math.round(valTotal).toLocaleString("es-AR");
-    const valCard = '<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 20px;margin-bottom:16px;display:inline-block;min-width:210px">'
-      + '<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Valuación del stock</div>'
-      + '<div style="font-size:26px;font-weight:700;color:var(--success)">' + valFmt + '</div>'
-      + '<div style="font-size:11px;color:var(--muted);margin-top:3px">precio de venta × stock actual</div>'
+    let varPct = "";
+    if (valMesAnt && valMesAnt > 0) {
+      const pct = ((valTotal - valMesAnt) / valMesAnt * 100);
+      const sign = pct >= 0 ? "+" : "";
+      const col  = pct >= 0 ? "#34d399" : "#f87171";
+      varPct = '<div style="font-size:12px;margin-top:4px">'
+        + '<span style="color:' + col + ';font-weight:600">' + sign + pct.toFixed(1) + '%</span>'
+        + ' <span style="color:var(--muted)">vs mes anterior</span></div>';
+    } else {
+      varPct = '<div style="font-size:11px;color:var(--muted);margin-top:4px">sin datos mes anterior</div>';
+    }
+    const valCard = '<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 16px;margin-bottom:14px;display:inline-block;min-width:180px">'
+      + '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Valuación del stock</div>'
+      + '<div style="font-size:22px;font-weight:700;color:var(--success)">' + valFmt + '</div>'
+      + varPct
       + '</div>';
 
-    const chipStyle = (active) => 'background:var(--card);border:1px solid ' + (active ? 'var(--success)' : 'var(--border)') + ';'
-      + (active ? 'box-shadow:0 0 0 1px var(--success);' : '')
-      + 'border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;transition:border-color .15s';
-    const mkChip = (n, label, color, filter) =>
-      '<div style="' + chipStyle(filter === "") + '" data-filter="' + filter + '">'
-      + '<span style="font-weight:700;font-size:16px;display:block' + (color ? ';color:' + color : '') + '">' + n + '</span>'
-      + label + '</div>';
+    const mkChip = (n, label, color, filter, active) => {
+      const border = active ? 'var(--success)' : 'var(--border)';
+      const shadow = active ? ';box-shadow:0 0 0 1px var(--success)' : '';
+      return '<div style="background:var(--card);border:1px solid ' + border + ';border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;transition:border-color .15s' + shadow + '" data-filter="' + filter + '">'
+        + '<span style="font-weight:700;font-size:14px;display:block' + (color ? ';color:' + color : '') + '">' + n + '</span>'
+        + label + '</div>';
+    };
 
-    const chips = '<div id="stock-chips" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">'
-      + mkChip(d.total,  "todas las variantes", "",        "")
-      + mkChip(n_red,    "cobertura &lt;7d",    "#f87171", "red")
-      + mkChip(n_orange, "cobertura 7-14d",     "#fb923c", "orange")
-      + mkChip(n_yellow, "cobertura 14-21d",    "#fbbf24", "yellow")
+    const chips = '<div id="stock-chips" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">'
+      + mkChip(d.total, "todas", "", "", true)
+      + '<div style="width:1px;height:38px;background:var(--border);margin:0 2px;flex-shrink:0"></div>'
+      + '<span style="font-size:11px;color:var(--muted);white-space:nowrap">Cobertura:</span>'
+      + mkChip(n_red,    "&lt;7d",  "#f87171", "red",    false)
+      + mkChip(n_orange, "7-14d",  "#fb923c", "orange", false)
+      + mkChip(n_yellow, "14-21d", "#fbbf24", "yellow", false)
       + '</div>';
 
     const section = (title, bodyId, body, startOpen) => {
@@ -737,10 +751,10 @@
 
     el.innerHTML = header + valCard + chips + alertasSec + top20Sec + tablaSec;
 
-    // adjuntar click chips via JS (evita problemas con onclick inline)
-    document.querySelectorAll("#stock-chips [data-filter]").forEach(chip => {
+    // adjuntar click chips via JS
+    document.querySelectorAll("#stock-chips [data-filter]").forEach(function(chip) {
       chip.addEventListener("click", function() {
-        document.querySelectorAll("#stock-chips [data-filter]").forEach(c => {
+        document.querySelectorAll("#stock-chips [data-filter]").forEach(function(c) {
           c.style.borderColor = "var(--border)";
           c.style.boxShadow = "";
         });
@@ -748,6 +762,19 @@
         this.style.boxShadow = "0 0 0 1px var(--success)";
         _stockChipFilter = this.getAttribute("data-filter");
         filtrarStock();
+        // si hay filtro activo: colapsar alertas y top20, abrir todas
+        var hasFilter = !!_stockChipFilter;
+        ["sec-alertas","sec-top20"].forEach(function(id) {
+          var b = document.getElementById(id);
+          var a = document.getElementById(id + "-arrow");
+          if (!b) return;
+          b.style.display = hasFilter ? "none" : "";
+          if (a) a.textContent = hasFilter ? "▶" : "▼";
+        });
+        var todas = document.getElementById("sec-todas");
+        var todasArrow = document.getElementById("sec-todas-arrow");
+        if (todas) todas.style.display = "";
+        if (todasArrow) todasArrow.textContent = "▼";
       });
     });
   }
@@ -763,7 +790,8 @@
 
   function filtrarStock() {
     const q = (document.getElementById("stock-search") ? document.getElementById("stock-search").value : "").toLowerCase().trim();
-    document.querySelectorAll("#stock-tbody tr").forEach(function(tr) {
+    // filtra TODAS las filas con data-cob en el panel stock
+    document.querySelectorAll("#stock-content tr[data-cob]").forEach(function(tr) {
       var matchText = !q || tr.getAttribute("data-search").includes(q);
       var matchChip = !_stockChipFilter || tr.getAttribute("data-cob") === _stockChipFilter;
       tr.style.display = (matchText && matchChip) ? "" : "none";
