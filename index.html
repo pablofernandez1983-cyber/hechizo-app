@@ -532,8 +532,16 @@
       variacion = Math.round(((hoyEntry.total - ayerEntry.total) / ayerEntry.total) * 1000) / 10;
     }
 
+    // Preservar pendientes existentes hasta que TiendaNube los actualice
+    const _pHoy  = ventasData?.pendientes_hoy  ?? null;
+    const _pAyer = ventasData?.pendientes_ayer ?? null;
+    const _pMes  = ventasData?.pendientes_mes  ?? null;
+
     ventasData = {
       actualizadoEn: null,  // Se actualiza solo cuando TiendaNube confirma hoy+ayer
+      pendientes_hoy:  _pHoy,
+      pendientes_ayer: _pAyer,
+      pendientes_mes:  _pMes,
       hoy:  { fecha: hoyStr,  total: hoyEntry.total,  cantidad: hoyEntry.cantidad },
       ayer: { fecha: ayerStr, total: ayerEntry.total, cantidad: ayerEntry.cantidad },
       variacion,
