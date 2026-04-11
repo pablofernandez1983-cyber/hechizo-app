@@ -654,11 +654,11 @@
     };
 
     const TH = '<thead><tr>'
-      + '<th class="sth num" style="width:36px">#</th>'
+      + '<th class="sth" style="width:32px;text-align:center">#</th>'
       + '<th class="sth sortable" onclick="sortStock(this,1)">Producto</th>'
-      + '<th class="sth sortable num" onclick="sortStock(this,2)" style="width:72px">Stock</th>'
-      + '<th class="sth sortable num" onclick="sortStock(this,3)" style="width:106px"><span style="font-size:10px;line-height:1.4">Ventas<br>ult. 90d</span></th>'
-      + '<th class="sth sortable num" onclick="sortStock(this,4)" style="width:88px">Cobertura</th>'
+      + '<th class="sth sortable" onclick="sortStock(this,2)" style="width:60px;text-align:center">Stock</th>'
+      + '<th class="sth sortable" onclick="sortStock(this,3)" style="width:78px;text-align:center"><span style="font-size:10px;line-height:1.4">Ventas<br>ult. 90d</span></th>'
+      + '<th class="sth sortable" onclick="sortStock(this,4)" style="width:74px;text-align:center">Cobertura</th>'
       + '</tr></thead>';
 
     const buildRows = (items, offset) => items.map((v, i) => {
@@ -668,11 +668,11 @@
       const bg = cobBg(v.cobertura);
       const trStyle = bg ? ' style="background:' + bg + '"' : '';
       return '<tr' + trStyle + ' data-search="' + srch + '" data-cob="' + cobKey(v.cobertura) + '">'
-        + '<td class="num">' + (offset + i + 1) + '</td>'
+        + '<td style="text-align:center;color:var(--muted);font-size:12px">' + (offset + i + 1) + '</td>'
         + '<td>' + v.nombre + varSpan + skuSpan + '</td>'
-        + '<td class="num">' + v.stock + '</td>'
-        + '<td class="num">' + v.unidades_90 + '</td>'
-        + '<td class="num">' + cobBadge(v.cobertura) + '</td>'
+        + '<td style="text-align:center">' + v.stock + '</td>'
+        + '<td style="text-align:center">' + v.unidades_90 + '</td>'
+        + '<td style="text-align:center">' + cobBadge(v.cobertura) + '</td>'
         + '</tr>';
     }).join('');
 
@@ -694,9 +694,9 @@
     } else {
       varPct = '<div style="font-size:11px;color:var(--muted);margin-top:4px">sin datos mes anterior</div>';
     }
-    const valCard = '<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 16px;margin-bottom:14px;display:inline-block;min-width:180px">'
-      + '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Valuación del stock</div>'
-      + '<div style="font-size:22px;font-weight:700;color:var(--success)">' + valFmt + '</div>'
+    const valCard = '<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 14px;text-align:right;min-width:160px;flex-shrink:0">'
+      + '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:1px">Valuación del stock</div>'
+      + '<div style="font-size:20px;font-weight:700;color:var(--success)">' + valFmt + '</div>'
       + varPct
       + '</div>';
 
@@ -708,14 +708,17 @@
         + label + '</div>';
     };
 
-    const chips = '<div id="stock-chips" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">'
+    const chipsLeft = '<div id="stock-chips" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
       + mkChip(d.total, "todas", "", "", true)
-      + '<div style="width:1px;height:38px;background:var(--border);margin:0 2px;flex-shrink:0"></div>'
+      + '<div style="width:1px;height:36px;background:var(--border);margin:0 2px;flex-shrink:0"></div>'
       + '<span style="font-size:11px;color:var(--muted);white-space:nowrap">Cobertura:</span>'
       + mkChip(n_red,    "&lt;7d",  "#f87171", "red",    false)
       + mkChip(n_orange, "7-14d",  "#fb923c", "orange", false)
       + mkChip(n_yellow, "14-21d", "#fbbf24", "yellow", false)
       + '</div>';
+
+    const chips = '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">'
+      + chipsLeft + valCard + '</div>';
 
     const section = (title, bodyId, body, startOpen) => {
       const arrow = startOpen ? '▼' : '▶';
@@ -749,7 +752,7 @@
       + '<button onclick="cargarStock()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px">↻ Actualizar</button>'
       + '</div>';
 
-    el.innerHTML = header + valCard + chips + alertasSec + top20Sec + tablaSec;
+    el.innerHTML = header + chips + alertasSec + top20Sec + tablaSec;
 
     // adjuntar click chips via JS
     document.querySelectorAll("#stock-chips [data-filter]").forEach(function(chip) {
