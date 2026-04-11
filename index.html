@@ -136,7 +136,11 @@
     <nav class="nav">
       <button class="nav-tab active" id="nav-ventas" onclick="switchTab('ventas')">Ventas</button>
       <button class="nav-tab" id="nav-resultados" onclick="switchTab('resultados')">Resultados</button>
+      <button class="nav-tab" id="nav-stock" onclick="switchTab('stock')">Stock</button>
     </nav>
+    <div id="panel-stock" class="hidden" style="padding:16px 20px;">
+      <div id="stock-content"></div>
+    </div>
     <div id="panel-resultados" class="hidden">
       <div class="tabs-wrap" id="tabs"></div>
       <main id="main-content"></main>
@@ -177,11 +181,6 @@
     </div>
     <footer>
       <div class="updated-label" id="updated-label"></div>
-      <a href="https://hechizo-reporte-nuevo-production.up.railway.app/stock"
-         target="_blank"
-         style="display:inline-block;margin-bottom:10px;font-size:13px;color:var(--success);text-decoration:none;">
-        📦 Ver reporte de stock →
-      </a>
       <button class="refresh-btn" id="refresh-resultados-btn" onclick="triggearKnime()">↻ Refrescar resultados</button>
       <div style="font-size:11px;color:var(--muted);margin-top:6px;" id="trigger-status"></div>
       <div class="progress-wrap" id="progress-wrap">
@@ -332,14 +331,13 @@
   }
 
   function switchTab(tab) {
-    const esVentas = tab === "ventas";
-    document.getElementById("panel-resultados").classList.toggle("hidden", esVentas);
-    document.getElementById("panel-ventas").classList.toggle("hidden", !esVentas);
-    document.getElementById("nav-resultados").classList.toggle("active", !esVentas);
-    document.getElementById("nav-ventas").classList.toggle("active", esVentas);
+    ["ventas","resultados","stock"].forEach(t => {
+      document.getElementById("panel-" + t).classList.toggle("hidden", t !== tab);
+      document.getElementById("nav-" + t).classList.toggle("active", t === tab);
+    });
     localStorage.setItem("hechizo_tab", tab);
-
-    if (esVentas) asegurarVentasActualizadas();
+    if (tab === "ventas")   asegurarVentasActualizadas();
+    if (tab === "stock")    asegurarStockActualizado();
   }
 
   async function asegurarVentasActualizadas() {
@@ -604,6 +602,139 @@
 
   const RAILWAY_URL = "https://hechizo-reporte-nuevo-production.up.railway.app";
 
+  // ── Stock tab ────────────────────────────────────────────────────────────
+  let stockCargado = false;
+
+  async function asegurarStockActualizado() {
+    if (!stockCargado) await cargarStock();
+  }
+
+  async function cargarStock() {
+    const el = document.getElementById("stock-content");
+    el.innerHTML = '<div style="color:var(--muted);padding:20px 0">Cargando stock...</div>';
+    try {
+      const res = await fetch(RAILWAY_URL + "/stock-data?t=" + Date.now(), { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.error || "Error del servidor");
+      stockCargado = true;
+      renderStock(d);
+    } catch (err) {
+      el.innerHTML = '<div style="color:#f87171;padding:20px 0">Error al cargar stock: ' + err.message + '</div>';
+    }
+  }
+
+  function renderStock(d) {
+    const el = document.getElementById("stock-content");
+    const fmt2 = n => n == null ? "—" : n + "d";
+    const cobBadge = cob => {
+      if (cob == null) return "—";
+      const txt = Math.round(cob) + "d";
+      if (cob < 7)  return '<span style="color:#f87171;font-weight:600">' + txt + '</span>';
+      if (cob < 14) return '<span style="color:#fb923c;font-weight:600">' + txt + '</span>';
+      if (cob < 21) return '<span style="color:#fbbf24;font-weight:600">' + txt + '</span>';
+      return txt;
+    };
+    const cobBg = cob => {
+      if (cob == null) return "";
+      if (cob < 7)  return 'style="background:rgba(248,113,113,0.08)"';
+      if (cob < 14) return 'style="background:rgba(251,146,60,0.06)"';
+      if (cob < 21) return 'style="background:rgba(251,191,36,0.05)"';
+      return "";
+    };
+
+    const TH = '<thead><tr>'
+      + '<th class="sth num">#</th>'
+      + '<th class="sth sortable" onclick="sortStock(this,1)">Producto</th>'
+      + '<th class="sth sortable" onclick="sortStock(this,2)">SKU</th>'
+      + '<th class="sth sortable num" onclick="sortStock(this,3)">Stock</th>'
+      + '<th class="sth sortable num" onclick="sortStock(this,4)">Vend. 90d</th>'
+      + '<th class="sth sortable num" onclick="sortStock(this,5)">Cobertura</th>'
+      + '</tr></thead>';
+
+    const buildRows = (items, offset) => items.map((v, i) => {
+      const varSpan = v.variante ? ' <span style="color:var(--muted);font-size:12px">' + v.variante + '</span>' : '';
+      const srch = (v.nombre + ' ' + v.variante + ' ' + v.sku).toLowerCase();
+      return '<tr ' + cobBg(v.cobertura) + ' data-search="' + srch + '">'
+        + '<td class="num">' + (offset + i + 1) + '</td>'
+        + '<td>' + v.nombre + varSpan + '</td>'
+        + '<td style="font-family:monospace;font-size:12px;color:var(--muted)">' + v.sku + '</td>'
+        + '<td class="num">' + v.stock + '</td>'
+        + '<td class="num">' + v.unidades_90 + '</td>'
+        + '<td class="num">' + cobBadge(v.cobertura) + '</td>'
+        + '</tr>';
+    }).join('');
+
+    const n_red    = d.alertas.filter(v => v.cobertura != null && v.cobertura < 7).length;
+    const n_orange = d.alertas.filter(v => v.cobertura != null && v.cobertura >= 7 && v.cobertura < 14).length;
+    const n_yellow = d.alertas.filter(v => v.cobertura != null && v.cobertura >= 14).length;
+
+    const chips = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">'
+      + chip(d.total, "variantes activas", "")
+      + chip(n_red, "cobertura &lt;7d 🚨", "#f87171")
+      + chip(n_orange, "cobertura 7-14d", "#fb923c")
+      + chip(n_yellow, "cobertura 14-21d", "#fbbf24")
+      + '</div>';
+
+    function chip(n, label, color) {
+      return '<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px">'
+        + '<span style="font-weight:700;font-size:16px;display:block' + (color ? ';color:' + color : '') + '">' + n + '</span>'
+        + label + '</div>';
+    }
+
+    const alertasSec = d.alertas.length === 0 ? "" :
+      section("🚨 Alertas — cobertura &lt; 21 días (" + d.alertas.length + " variantes)",
+              '<table style="width:100%;border-collapse:collapse">' + TH + '<tbody>' + buildRows(d.alertas, 0) + '</tbody></table>');
+
+    const top20Sec = section("📈 Top 20 más vendidos — últimos 90 días",
+      '<table style="width:100%;border-collapse:collapse">' + TH + '<tbody>' + buildRows(d.top20, 0) + '</tbody></table>');
+
+    const tablaSec = section("📦 Todas las variantes (" + d.total + ")",
+      '<input type="text" id="stock-search" placeholder="Buscar nombre, variante o SKU..."'
+      + ' oninput="filtrarStock(this.value)"'
+      + ' style="width:100%;max-width:400px;background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:14px;outline:none;margin-bottom:12px">'
+      + '<table id="stock-table" style="width:100%;border-collapse:collapse">' + TH
+      + '<tbody id="stock-tbody">' + buildRows(d.variantes, 0) + '</tbody></table>');
+
+    function section(title, body) {
+      return '<div style="margin-bottom:28px">'
+        + '<div style="font-size:15px;font-weight:600;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)">' + title + '</div>'
+        + body + '</div>';
+    }
+
+    const genEn = d.generado_en || "";
+    const header = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+      + '<span style="font-size:12px;color:var(--muted)">Generado ' + genEn + '</span>'
+      + '<button onclick="cargarStock()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px">↻ Actualizar</button>'
+      + '</div>';
+
+    el.innerHTML = header + chips + alertasSec + top20Sec + tablaSec;
+  }
+
+  function filtrarStock(q) {
+    q = q.toLowerCase().trim();
+    document.querySelectorAll("#stock-tbody tr").forEach(tr => {
+      tr.style.display = (!q || tr.dataset.search.includes(q)) ? "" : "none";
+    });
+  }
+
+  function sortStock(th, col) {
+    const tbody = document.getElementById("stock-tbody");
+    if (!tbody) return;
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+    const asc  = th.dataset.asc !== "1";
+    th.dataset.asc = asc ? "1" : "0";
+    rows.sort((a, b) => {
+      const av = a.cells[col].textContent.replace("d","").trim();
+      const bv = b.cells[col].textContent.replace("d","").trim();
+      const an = parseFloat(av), bn = parseFloat(bv);
+      if (!isNaN(an) && !isNaN(bn)) return asc ? an - bn : bn - an;
+      return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
+    rows.forEach(r => tbody.appendChild(r));
+  }
+  // ── fin Stock tab ────────────────────────────────────────────────────────
+
   async function triggearKnime() {
     const btn = document.getElementById("refresh-resultados-btn");
     const status = document.getElementById("trigger-status");
@@ -822,7 +953,8 @@
     show("screen-content");
 
     const lastTab = localStorage.getItem("hechizo_tab");
-    if (lastTab !== "resultados") switchTab("ventas");
+    if (lastTab === "resultados" || lastTab === "stock") switchTab(lastTab);
+    else switchTab("ventas");
   }
 
   function renderTabs() {
