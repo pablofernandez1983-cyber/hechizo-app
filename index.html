@@ -624,9 +624,12 @@
     }
   }
 
+  let _stockChipFilter = "";
+
   function renderStock(d) {
     const el = document.getElementById("stock-content");
-    const fmt2 = n => n == null ? "—" : n + "d";
+    _stockChipFilter = "";
+
     const cobBadge = cob => {
       if (cob == null) return "—";
       const txt = Math.round(cob) + "d";
@@ -637,28 +640,36 @@
     };
     const cobBg = cob => {
       if (cob == null) return "";
-      if (cob < 7)  return 'style="background:rgba(248,113,113,0.08)"';
-      if (cob < 14) return 'style="background:rgba(251,146,60,0.06)"';
-      if (cob < 21) return 'style="background:rgba(251,191,36,0.05)"';
+      if (cob < 7)  return "rgba(248,113,113,0.08)";
+      if (cob < 14) return "rgba(251,146,60,0.06)";
+      if (cob < 21) return "rgba(251,191,36,0.05)";
       return "";
     };
+    const cobColor = cob => {
+      if (cob == null) return "ok";
+      if (cob < 7)  return "red";
+      if (cob < 14) return "orange";
+      if (cob < 21) return "yellow";
+      return "ok";
+    };
 
-    const TH = '<thead><tr>'
-      + '<th class="sth num">#</th>'
+    const TH = '<thead><tr style="position:sticky;top:0;z-index:1">'
+      + '<th class="sth num" style="width:36px">#</th>'
       + '<th class="sth sortable" onclick="sortStock(this,1)">Producto</th>'
-      + '<th class="sth sortable" onclick="sortStock(this,2)">SKU</th>'
-      + '<th class="sth sortable num" onclick="sortStock(this,3)">Stock</th>'
-      + '<th class="sth sortable num" onclick="sortStock(this,4)">Vend. 90d</th>'
-      + '<th class="sth sortable num" onclick="sortStock(this,5)">Cobertura</th>'
+      + '<th class="sth sortable num" onclick="sortStock(this,2)" style="width:72px">Stock</th>'
+      + '<th class="sth sortable num" onclick="sortStock(this,3)" style="width:106px"><span style="font-size:10px;line-height:1.4">Ventas<br>ult. 90d</span></th>'
+      + '<th class="sth sortable num" onclick="sortStock(this,4)" style="width:88px">Cobertura</th>'
       + '</tr></thead>';
 
     const buildRows = (items, offset) => items.map((v, i) => {
       const varSpan = v.variante ? ' <span style="color:var(--muted);font-size:12px">' + v.variante + '</span>' : '';
+      const skuSpan = v.sku ? '<span style="display:block;font-size:11px;color:var(--muted);font-family:monospace;margin-top:2px">' + v.sku + '</span>' : '';
       const srch = (v.nombre + ' ' + v.variante + ' ' + v.sku).toLowerCase();
-      return '<tr ' + cobBg(v.cobertura) + ' data-search="' + srch + '">'
+      const bg = cobBg(v.cobertura);
+      const trStyle = bg ? ' style="background:' + bg + '"' : '';
+      return '<tr' + trStyle + ' data-search="' + srch + '" data-cob-color="' + cobColor(v.cobertura) + '">'
         + '<td class="num">' + (offset + i + 1) + '</td>'
-        + '<td>' + v.nombre + varSpan + '</td>'
-        + '<td style="font-family:monospace;font-size:12px;color:var(--muted)">' + v.sku + '</td>'
+        + '<td>' + v.nombre + varSpan + skuSpan + '</td>'
         + '<td class="num">' + v.stock + '</td>'
         + '<td class="num">' + v.unidades_90 + '</td>'
         + '<td class="num">' + cobBadge(v.cobertura) + '</td>'
@@ -669,17 +680,34 @@
     const n_orange = d.alertas.filter(v => v.cobertura != null && v.cobertura >= 7 && v.cobertura < 14).length;
     const n_yellow = d.alertas.filter(v => v.cobertura != null && v.cobertura >= 14).length;
 
-    const chips = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">'
-      + chip(d.total, "variantes activas", "")
-      + chip(n_red, "cobertura &lt;7d 🚨", "#f87171")
-      + chip(n_orange, "cobertura 7-14d", "#fb923c")
-      + chip(n_yellow, "cobertura 14-21d", "#fbbf24")
+    function chip(n, label, color, filter) {
+      const colorStyle = color ? 'color:' + color + ';' : '';
+      return '<div onclick="setStockChip(this)" data-filter="' + filter + '"'
+        + ' style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;transition:border-color .15s"'
+        + ' data-active="' + (filter === "" ? "1" : "0") + '">'
+        + '<span style="font-weight:700;font-size:16px;display:block;' + colorStyle + '">' + n + '</span>'
+        + label + '</div>';
+    }
+
+    const valTotal = d.valuacion_total || 0;
+    const valFmt = "$ " + Math.round(valTotal).toLocaleString("es-AR");
+    const valCard = '<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 20px;margin-bottom:16px;display:inline-block;min-width:210px">'
+      + '<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Valuación del stock</div>'
+      + '<div style="font-size:26px;font-weight:700;color:var(--success)">' + valFmt + '</div>'
+      + '<div style="font-size:11px;color:var(--muted);margin-top:3px">precio de venta × stock actual</div>'
       + '</div>';
 
-    function chip(n, label, color) {
-      return '<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px">'
-        + '<span style="font-weight:700;font-size:16px;display:block' + (color ? ';color:' + color : '') + '">' + n + '</span>'
-        + label + '</div>';
+    const chips = '<div id="stock-chips" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">'
+      + chip(d.total,   "todas las variantes",  "",         "")
+      + chip(n_red,     "cobertura &lt;7d",     "#f87171",  "red")
+      + chip(n_orange,  "cobertura 7-14d",      "#fb923c",  "orange")
+      + chip(n_yellow,  "cobertura 14-21d",     "#fbbf24",  "yellow")
+      + '</div>';
+
+    function section(title, body) {
+      return '<div style="margin-bottom:28px">'
+        + '<div style="font-size:15px;font-weight:600;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)">' + title + '</div>'
+        + body + '</div>';
     }
 
     const alertasSec = d.alertas.length === 0 ? "" :
@@ -691,16 +719,10 @@
 
     const tablaSec = section("📦 Todas las variantes (" + d.total + ")",
       '<input type="text" id="stock-search" placeholder="Buscar nombre, variante o SKU..."'
-      + ' oninput="filtrarStock(this.value)"'
+      + ' oninput="filtrarStock()"'
       + ' style="width:100%;max-width:400px;background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:14px;outline:none;margin-bottom:12px">'
       + '<table id="stock-table" style="width:100%;border-collapse:collapse">' + TH
       + '<tbody id="stock-tbody">' + buildRows(d.variantes, 0) + '</tbody></table>');
-
-    function section(title, body) {
-      return '<div style="margin-bottom:28px">'
-        + '<div style="font-size:15px;font-weight:600;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)">' + title + '</div>'
-        + body + '</div>';
-    }
 
     const genEn = d.generado_en || "";
     const header = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
@@ -708,13 +730,29 @@
       + '<button onclick="cargarStock()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px">↻ Actualizar</button>'
       + '</div>';
 
-    el.innerHTML = header + chips + alertasSec + top20Sec + tablaSec;
+    el.innerHTML = header + valCard + chips + alertasSec + top20Sec + tablaSec;
+    // marcar primer chip como activo
+    const firstChip = document.querySelector("#stock-chips [data-filter='']");
+    if (firstChip) firstChip.style.borderColor = "var(--success)";
   }
 
-  function filtrarStock(q) {
-    q = q.toLowerCase().trim();
+  function setStockChip(el) {
+    document.querySelectorAll("#stock-chips [data-filter]").forEach(c => {
+      c.style.borderColor = "var(--border)";
+      c.style.boxShadow = "";
+    });
+    el.style.borderColor = "var(--success)";
+    el.style.boxShadow = "0 0 0 1px var(--success)";
+    _stockChipFilter = el.dataset.filter;
+    filtrarStock();
+  }
+
+  function filtrarStock() {
+    const q = (document.getElementById("stock-search")?.value || "").toLowerCase().trim();
     document.querySelectorAll("#stock-tbody tr").forEach(tr => {
-      tr.style.display = (!q || tr.dataset.search.includes(q)) ? "" : "none";
+      const matchText = !q || tr.dataset.search.includes(q);
+      const matchChip = !_stockChipFilter || tr.dataset.cobColor === _stockChipFilter;
+      tr.style.display = (matchText && matchChip) ? "" : "none";
     });
   }
 
