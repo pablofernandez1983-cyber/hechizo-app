@@ -338,6 +338,7 @@
       document.getElementById("panel-" + t).classList.toggle("hidden", t !== tab);
       document.getElementById("nav-" + t).classList.toggle("active", t === tab);
     });
+    document.querySelector("footer").style.display = tab === "resultados" ? "" : "none";
     localStorage.setItem("hechizo_tab", tab);
     if (tab === "ventas")   asegurarVentasActualizadas();
     if (tab === "stock")    asegurarStockActualizado();
