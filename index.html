@@ -198,8 +198,11 @@
   const TRIGGER_RANGE = "Trigger!A1";
   const STATUS_RANGE  = "Trigger!A2";
 
-  const STORAGE_VENTAS_KEY = "hechizo_ventas_data";
+  const STORAGE_VENTAS_KEY    = "hechizo_ventas_data";
   const STORAGE_VENTAS_TS_KEY = "hechizo_ventas_ts";
+  const STORAGE_STOCK_KEY     = "hechizo_stock_data";
+  const STORAGE_STOCK_TS_KEY  = "hechizo_stock_ts";
+  const STOCK_TTL_MS          = 2 * 60 * 60 * 1000; // 2 horas
 
   const LABELS = {
     "Ingresos":                   { label:"Ingresos",         tipo:"ingreso" },
@@ -603,24 +606,61 @@
   const RAILWAY_URL = "https://hechizo-reporte-nuevo-production.up.railway.app";
 
   // ── Stock tab ────────────────────────────────────────────────────────────
-  let stockCargado = false;
+  let _stockData = null;
 
-  async function asegurarStockActualizado() {
-    if (!stockCargado) await cargarStock();
+  function _guardarStockLocal(d) {
+    try {
+      localStorage.setItem(STORAGE_STOCK_KEY, JSON.stringify(d));
+      localStorage.setItem(STORAGE_STOCK_TS_KEY, String(Date.now()));
+    } catch (e) {}
   }
 
-  async function cargarStock() {
+  function _restaurarStockLocal() {
+    try {
+      const raw = localStorage.getItem(STORAGE_STOCK_KEY);
+      const ts  = parseInt(localStorage.getItem(STORAGE_STOCK_TS_KEY) || "0", 10);
+      if (!raw) return false;
+      _stockData = JSON.parse(raw);
+      _stockData._ts = ts;
+      return true;
+    } catch (e) { return false; }
+  }
+
+  async function asegurarStockActualizado() {
+    const ahora = Date.now();
+    const ts = parseInt(localStorage.getItem(STORAGE_STOCK_TS_KEY) || "0", 10);
+    const vencido = (ahora - ts) > STOCK_TTL_MS;
+
+    // Si hay caché, mostrar inmediatamente
+    if (_stockData) {
+      renderStock(_stockData);
+    } else if (_restaurarStockLocal()) {
+      renderStock(_stockData);
+    }
+
+    // Actualizar en background si venció o no hay caché
+    if (vencido || !_stockData) {
+      await cargarStock(!!_stockData);
+    }
+  }
+
+  async function cargarStock(silencioso = false) {
     const el = document.getElementById("stock-content");
-    el.innerHTML = '<div style="color:var(--muted);padding:20px 0">Cargando stock...</div>';
+    if (!silencioso) {
+      el.innerHTML = '<div style="color:var(--muted);padding:20px 0">Cargando stock...</div>';
+    }
     try {
       const res = await fetch(RAILWAY_URL + "/stock-data?t=" + Date.now(), { cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const d = await res.json();
       if (!d.ok) throw new Error(d.error || "Error del servidor");
-      stockCargado = true;
+      _stockData = d;
+      _guardarStockLocal(d);
       renderStock(d);
     } catch (err) {
-      el.innerHTML = '<div style="color:#f87171;padding:20px 0">Error al cargar stock: ' + err.message + '</div>';
+      if (!silencioso) {
+        el.innerHTML = '<div style="color:#f87171;padding:20px 0">Error al cargar stock: ' + err.message + '</div>';
+      }
     }
   }
 
