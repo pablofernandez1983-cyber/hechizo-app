@@ -789,7 +789,7 @@
     const genEn = d.generado_en || "";
     const header = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
       + '<span style="font-size:12px;color:var(--muted)">Generado ' + genEn + '</span>'
-      + '<button onclick="cargarStock()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px">↻ Actualizar</button>'
+      + '<button onclick="cargarStock(!!_stockData)" style="background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px">↻ Actualizar</button>'
       + '</div>';
 
     el.innerHTML = header + chips + alertasSec + top20Sec + tablaSec;
