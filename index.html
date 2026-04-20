@@ -187,6 +187,7 @@
       </div>
       <div id="footer-resultados" class="hidden">
         <div class="updated-label" id="updated-label"></div>
+        <div id="warnings-resultados" style="font-size:11px;color:#f59e0b;margin-top:2px;display:none;"></div>
         <button class="refresh-btn" id="refresh-resultados-btn" onclick="triggearKnime()">↻ Actualizar resultados</button>
         <div style="font-size:11px;color:var(--muted);margin-top:6px;" id="trigger-status"></div>
         <div class="progress-wrap" id="progress-wrap">
@@ -961,6 +962,8 @@
     btn.disabled = true;
     btn.textContent = "Iniciando reporte...";
     status.textContent = "";
+    const warnEl = document.getElementById("warnings-resultados");
+    if (warnEl) warnEl.style.display = "none";
 
     try {
       const res = await fetch(`${RAILWAY_URL}/ejecutar`, {
@@ -1054,6 +1057,14 @@
           btn.textContent = "↻ Refrescar resultados";
           status.textContent = "Actualizado: " + fmtFechaReal(appData?.actualizadoEn);
           wrap.classList.remove("visible");
+          const warnEl = document.getElementById("warnings-resultados");
+          const warns = json.warnings || [];
+          if (warns.length > 0) {
+            warnEl.textContent = "⚠ Errores en: " + warns.join(", ");
+            warnEl.style.display = "block";
+          } else {
+            warnEl.style.display = "none";
+          }
         } else if (!json.corriendo && json.resultado === "ERROR") {
           clearInterval(pollEstado);
           terminado = true;
