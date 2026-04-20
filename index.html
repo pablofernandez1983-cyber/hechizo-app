@@ -743,7 +743,7 @@
     const liquidar = d.variantes.filter(v => {
       const u = dias===30?(v.unidades_30||0):dias===180?(v.unidades_180||0):(v.unidades_90||0);
       return v.stock >= 1 && u === 0;
-    });
+    }).sort((a,b) => b.stock - a.stock);
 
     const listas = { alertas, top20, liquidar, todas: d.variantes };
     const items  = listas[_stockVista] || d.variantes;
@@ -786,7 +786,7 @@
     const viewCards = '<div style="display:flex;gap:8px;margin-bottom:14px">'
       + mkCard("alertas",  "🚨", "Alertas &lt;21d", alertas.length,  "#f87171")
       + mkCard("top20",    "📈", "Top 20",          20,              "#34d399")
-      + mkCard("liquidar", "🏷️", "Liquidar",        liquidar.length, "#fb923c")
+      + mkCard("liquidar", "🏷️", "A liquidar",       liquidar.length, "#fb923c")
       + mkCard("todas",    "📦", "Todas",           d.total,         "var(--success)")
       + '</div>';
 
