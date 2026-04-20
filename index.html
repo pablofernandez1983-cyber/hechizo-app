@@ -680,8 +680,8 @@
     }
   }
 
-  let _stockChipFilter = "";
   let _stockDias = 90;
+  let _stockVista = "alertas";
 
   function _coberturaVar(v, dias) {
     const u = dias === 30 ? v.unidades_30 : dias === 180 ? v.unidades_180 : v.unidades_90;
@@ -691,7 +691,6 @@
 
   function renderStock(d) {
     const el = document.getElementById("stock-content");
-    _stockChipFilter = "";
     const dias = _stockDias;
 
     const cobBadge = cob => {
@@ -709,13 +708,6 @@
       if (cob < 21) return "rgba(251,191,36,0.05)";
       return "";
     };
-    const cobKey = cob => {
-      if (cob == null) return "ok";
-      if (cob < 7)  return "red";
-      if (cob < 14) return "orange";
-      if (cob < 21) return "yellow";
-      return "ok";
-    };
 
     const TH = '<thead><tr>'
       + '<th class="sth" style="width:32px;text-align:center">#</th>'
@@ -725,7 +717,7 @@
       + '<th class="sth sortable" onclick="sortStock(this,4)" style="width:74px;text-align:center">Cobertura</th>'
       + '</tr></thead>';
 
-    const buildRows = (items, offset) => items.map((v, i) => {
+    const buildRows = items => items.map((v, i) => {
       const cob = _coberturaVar(v, dias);
       const u   = dias === 30 ? (v.unidades_30||0) : dias === 180 ? (v.unidades_180||0) : (v.unidades_90||0);
       const varSpan = v.variante ? ' <span style="color:var(--muted);font-size:12px">' + v.variante + '</span>' : '';
@@ -733,8 +725,8 @@
       const srch = (v.nombre + ' ' + v.variante + ' ' + v.sku).toLowerCase();
       const bg = cobBg(cob);
       const trStyle = bg ? ' style="background:' + bg + '"' : '';
-      return '<tr' + trStyle + ' data-search="' + srch + '" data-cob="' + cobKey(cob) + '">'
-        + '<td style="text-align:center;color:var(--muted);font-size:12px">' + (offset + i + 1) + '</td>'
+      return '<tr' + trStyle + ' data-search="' + srch + '">'
+        + '<td style="text-align:center;color:var(--muted);font-size:12px">' + (i + 1) + '</td>'
         + '<td>' + v.nombre + varSpan + skuSpan + '</td>'
         + '<td style="text-align:center">' + v.stock + '</td>'
         + '<td style="text-align:center">' + u + '</td>'
@@ -742,138 +734,89 @@
         + '</tr>';
     }).join('');
 
-    const alertas = d.variantes.filter(v => { const c = _coberturaVar(v, dias); return c != null && c < 21; });
-    const n_red    = alertas.filter(v => _coberturaVar(v,dias) < 7).length;
-    const n_orange = alertas.filter(v => { const c=_coberturaVar(v,dias); return c>=7&&c<14; }).length;
-    const n_yellow = alertas.filter(v => { const c=_coberturaVar(v,dias); return c>=14&&c<21; }).length;
-    const top20    = [...d.variantes].sort((a,b) => {
+    const alertas = d.variantes.filter(v => { const c = _coberturaVar(v,dias); return c != null && c < 21; });
+    const top20   = [...d.variantes].sort((a,b) => {
       const ua = dias===30?(a.unidades_30||0):dias===180?(a.unidades_180||0):(a.unidades_90||0);
       const ub = dias===30?(b.unidades_30||0):dias===180?(b.unidades_180||0):(b.unidades_90||0);
       return ub - ua;
     }).slice(0, 20);
+    const liquidar = d.variantes.filter(v => {
+      const u = dias===30?(v.unidades_30||0):dias===180?(v.unidades_180||0):(v.unidades_90||0);
+      return v.stock >= 1 && u === 0;
+    });
 
-    const valTotal = d.valuacion_total || 0;
+    const listas = { alertas, top20, liquidar, todas: d.variantes };
+    const items  = listas[_stockVista] || d.variantes;
+
+    // ── Valuación ──────────────────────────────────────────────────────────
+    const valTotal  = d.valuacion_total || 0;
     const valMesAnt = d.valuacion_mes_anterior || null;
-    const valFmt = "$ " + Math.round(valTotal).toLocaleString("es-AR");
+    const valFmt    = "$ " + Math.round(valTotal).toLocaleString("es-AR");
     let varPct = "";
     if (valMesAnt && valMesAnt > 0) {
-      const pct = ((valTotal - valMesAnt) / valMesAnt * 100);
-      const sign = pct >= 0 ? "+" : "";
-      const col  = pct >= 0 ? "#34d399" : "#f87171";
-      varPct = '<div style="font-size:12px;margin-top:4px">'
-        + '<span style="color:' + col + ';font-weight:600">' + sign + pct.toFixed(1) + '%</span>'
-        + ' <span style="color:var(--muted)">vs mes anterior</span></div>';
-    } else {
-      varPct = '<div style="font-size:11px;color:var(--muted);margin-top:4px">sin datos mes anterior</div>';
+      const pct = (valTotal - valMesAnt) / valMesAnt * 100;
+      const col = pct >= 0 ? "#34d399" : "#f87171";
+      varPct = '<span style="color:' + col + ';font-weight:600">' + (pct>=0?"+":"") + pct.toFixed(1) + '%</span>'
+             + ' <span style="color:var(--muted);font-size:11px">vs mes ant.</span>';
     }
-    const valCard = '<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 14px;text-align:right;min-width:150px;flex-shrink:0">'
-      + '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:1px">Valuación del stock</div>'
+    const valCard = '<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 14px;text-align:right;flex-shrink:0">'
+      + '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Valuación del stock</div>'
       + '<div style="font-size:20px;font-weight:700;color:var(--success)">' + valFmt + '</div>'
-      + varPct
+      + (varPct ? '<div style="font-size:12px;margin-top:3px">' + varPct + '</div>' : '')
       + '</div>';
 
-    const mkChip = (n, label, color, filter, active) => {
-      const border = active ? 'var(--success)' : 'var(--border)';
-      const shadow = active ? ';box-shadow:0 0 0 1px var(--success)' : '';
-      return '<div style="background:var(--card);border:1px solid ' + border + ';border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer;transition:border-color .15s;text-align:center' + shadow + '" data-filter="' + filter + '">'
-        + '<span style="font-weight:700;font-size:20px;display:block' + (color ? ';color:' + color : '') + '">' + n + '</span>'
-        + label + '</div>';
+    // ── Período selector ───────────────────────────────────────────────────
+    const mkDiasBtn = d2 => {
+      const act = d2 === dias;
+      return '<button onclick="cambiarDiasStock(' + d2 + ')" style="background:' + (act?'var(--success)':'var(--card)') + ';border:1px solid ' + (act?'var(--success)':'var(--border)') + ';color:' + (act?'#fff':'var(--muted)') + ';padding:3px 10px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:' + (act?'700':'400') + '">' + d2 + 'd</button>';
     };
+    const topRow = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
+      + '<div style="display:flex;align-items:center;gap:5px"><span style="font-size:11px;color:var(--muted)">Período:</span>' + mkDiasBtn(30) + mkDiasBtn(90) + mkDiasBtn(180) + '</div>'
+      + valCard + '</div>';
 
-    const mkDiasBtn = (d2) => {
-      const active = d2 === dias;
-      return '<button onclick="cambiarDiasStock(' + d2 + ')" style="background:' + (active?'var(--success)':'var(--card)') + ';border:1px solid ' + (active?'var(--success)':'var(--border)') + ';color:' + (active?'#fff':'var(--muted)') + ';padding:3px 9px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:' + (active?'700':'400') + '">' + d2 + 'd</button>';
-    };
-
-    const diasSelector = '<div style="display:flex;align-items:center;gap:5px">'
-      + '<span style="font-size:11px;color:var(--muted)">Período:</span>'
-      + mkDiasBtn(30) + mkDiasBtn(90) + mkDiasBtn(180)
-      + '</div>';
-
-    const chipsLeft = '<div style="display:flex;flex-direction:column;gap:8px">'
-      + diasSelector
-      + '<div style="display:flex;flex-direction:column;gap:5px">'
-      + '<div style="font-size:11px;color:var(--muted)">Cobertura</div>'
-      + '<div id="stock-chips" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
-      + mkChip(d.total, "todas",  "", "",       true)
-      + mkChip(n_red,   "&lt;7d", "#f87171", "red",    false)
-      + mkChip(n_orange,"&lt;14d","#fb923c", "orange", false)
-      + mkChip(n_yellow,"&lt;21d","#fbbf24", "yellow", false)
-      + '</div></div></div>';
-
-    const chips = '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap">'
-      + chipsLeft + valCard + '</div>';
-
-    const section = (title, bodyId, body, startOpen) => {
-      const arrow = startOpen ? '▼' : '▶';
-      const display = startOpen ? '' : 'none';
-      return '<div style="margin-bottom:24px">'
-        + '<div onclick="toggleStockSection(\'' + bodyId + '\')" style="font-size:15px;font-weight:600;margin-bottom:0;padding-bottom:8px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;align-items:center">'
-        + '<span>' + title + '</span>'
-        + '<span id="' + bodyId + '-arrow" style="color:var(--muted);font-size:12px;margin-left:8px">' + arrow + '</span>'
-        + '</div>'
-        + '<div id="' + bodyId + '" style="margin-top:12px;display:' + display + '">' + body + '</div>'
+    // ── 4 cards de vista ───────────────────────────────────────────────────
+    const mkCard = (vista, icon, label, count, accentColor) => {
+      const act = _stockVista === vista;
+      return '<div onclick="cambiarVistaStock(\'' + vista + '\')" style="flex:1;min-width:0;background:var(--card);border:2px solid ' + (act ? accentColor : 'var(--border)') + ';border-radius:10px;padding:10px 8px;cursor:pointer;text-align:center;transition:border-color .15s' + (act?';box-shadow:0 0 0 2px '+accentColor+'22':'') + '">'
+        + '<div style="font-size:18px;margin-bottom:2px">' + icon + '</div>'
+        + '<div style="font-size:22px;font-weight:700;color:' + (act ? accentColor : 'var(--text)') + '">' + count + '</div>'
+        + '<div style="font-size:11px;color:var(--muted);margin-top:1px">' + label + '</div>'
         + '</div>';
     };
+    const viewCards = '<div style="display:flex;gap:8px;margin-bottom:14px">'
+      + mkCard("alertas",  "🚨", "Alertas &lt;21d", alertas.length,  "#f87171")
+      + mkCard("top20",    "📈", "Top 20",          20,              "#34d399")
+      + mkCard("liquidar", "🏷️", "Liquidar",        liquidar.length, "#fb923c")
+      + mkCard("todas",    "📦", "Todas",           d.total,         "var(--success)")
+      + '</div>';
 
-    const alertasSec = alertas.length === 0 ? "" :
-      section("🚨 Alertas — cobertura &lt; 21 días (" + alertas.length + " variantes)", "sec-alertas",
-        '<table style="width:100%;border-collapse:collapse">' + TH + '<tbody>' + buildRows(alertas, 0) + '</tbody></table>', true);
-
-    const top20Sec = section("📈 Top 20 más vendidos — últimos " + dias + " días", "sec-top20",
-      '<table style="width:100%;border-collapse:collapse">' + TH + '<tbody>' + buildRows(top20, 0) + '</tbody></table>', true);
-
-    const liq = d.candidatos_liquidar || [];
-    const liquidarSec = liq.length === 0 ? "" :
-      section("🏷️ Candidatos a liquidar — sin ventas en 180 días (" + liq.length + " variantes)", "sec-liquidar",
-        '<p style="font-size:12px;color:var(--muted);margin:0 0 10px">Stock &ge; 3 unidades sin ninguna venta en los últimos 6 meses.</p>'
-        + '<table style="width:100%;border-collapse:collapse">' + TH + '<tbody>' + buildRows(liq, 0) + '</tbody></table>', true);
-
-    const tablaSec = section("📦 Todas las variantes (" + d.total + ")", "sec-todas",
-      '<input type="text" id="stock-search" placeholder="Buscar nombre, variante o SKU..."'
-      + ' oninput="filtrarStock()"'
-      + ' style="width:100%;max-width:400px;background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:14px;outline:none;margin-bottom:12px">'
+    // ── Buscador + tabla ───────────────────────────────────────────────────
+    const liqNote = _stockVista === "liquidar"
+      ? '<p style="font-size:12px;color:var(--muted);margin:0 0 8px">Con stock disponible y sin ventas en los últimos ' + dias + ' días.</p>'
+      : '';
+    const tabla = '<input type="text" id="stock-search" placeholder="Buscar nombre, variante o SKU..." oninput="filtrarStock()"'
+      + ' style="width:100%;max-width:400px;background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:14px;outline:none;margin-bottom:10px">'
+      + liqNote
       + '<table id="stock-table" style="width:100%;border-collapse:collapse">' + TH
-      + '<tbody id="stock-tbody">' + buildRows(d.variantes, 0) + '</tbody></table>', true);
+      + '<tbody id="stock-tbody">' + buildRows(items) + '</tbody></table>';
 
+    // ── Header ─────────────────────────────────────────────────────────────
     const genEn = d.generado_en || "";
-    const header = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    const header = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
       + '<span style="font-size:12px;color:var(--muted)">Generado ' + genEn + '</span>'
       + '<button id="btn-actualizar-stock" onclick="forzarActualizarStock(this)" style="background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px">↻ Actualizar</button>'
       + '</div>';
 
-    el.innerHTML = header + chips + alertasSec + liquidarSec + top20Sec + tablaSec;
-
-    // adjuntar click chips via JS
-    document.querySelectorAll("#stock-chips [data-filter]").forEach(function(chip) {
-      chip.addEventListener("click", function() {
-        document.querySelectorAll("#stock-chips [data-filter]").forEach(function(c) {
-          c.style.borderColor = "var(--border)";
-          c.style.boxShadow = "";
-        });
-        this.style.borderColor = "var(--success)";
-        this.style.boxShadow = "0 0 0 1px var(--success)";
-        _stockChipFilter = this.getAttribute("data-filter");
-        filtrarStock();
-        // si hay filtro activo: colapsar alertas y top20, abrir todas
-        var hasFilter = !!_stockChipFilter;
-        ["sec-alertas","sec-top20"].forEach(function(id) {
-          var b = document.getElementById(id);
-          var a = document.getElementById(id + "-arrow");
-          if (!b) return;
-          b.style.display = hasFilter ? "none" : "";
-          if (a) a.textContent = hasFilter ? "▶" : "▼";
-        });
-        var todas = document.getElementById("sec-todas");
-        var todasArrow = document.getElementById("sec-todas-arrow");
-        if (todas) todas.style.display = "";
-        if (todasArrow) todasArrow.textContent = "▼";
-      });
-    });
+    el.innerHTML = header + topRow + viewCards + tabla;
   }
 
   function cambiarDiasStock(dias) {
     _stockDias = dias;
+    if (_stockData) renderStock(_stockData);
+  }
+
+  function cambiarVistaStock(vista) {
+    _stockVista = vista;
     if (_stockData) renderStock(_stockData);
   }
 
