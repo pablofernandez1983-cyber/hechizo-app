@@ -136,6 +136,7 @@
       </div>
       <div class="brand-sub">Estado de resultados</div>
     </header>
+    <div id="token-warn-banner" style="display:none;background:#92400e;color:#fef3c7;font-size:12px;padding:6px 16px;text-align:center;"></div>
     <nav class="nav">
       <button class="nav-tab active" id="nav-ventas" onclick="switchTab('ventas')">Ventas</button>
       <button class="nav-tab" id="nav-resultados" onclick="switchTab('resultados')">Resultados</button>
@@ -1404,9 +1405,29 @@
     if (document.visibilityState === "visible") asegurarVentasActualizadas();
   });
 
+  async function chequearTokens() {
+    try {
+      const res = await fetch(`${RAILWAY_URL}/tokens?t=${Date.now()}`, { cache: "no-store" });
+      const json = await res.json();
+      const banner = document.getElementById("token-warn-banner");
+      const alertas = (json.tokens || []).filter(t => t.dias_restantes !== null && t.dias_restantes <= 3 && t.dias_restantes >= 0);
+      const expirados = (json.tokens || []).filter(t => t.dias_restantes !== null && t.dias_restantes < 0);
+      const msgs = [];
+      expirados.forEach(t => msgs.push(`⛔ ${t.nombre}: token expirado`));
+      alertas.forEach(t => msgs.push(`⚠ ${t.nombre}: vence en ${t.dias_restantes} día${t.dias_restantes !== 1 ? "s" : ""} (${t.expira})`));
+      if (msgs.length > 0) {
+        banner.textContent = msgs.join("  ·  ");
+        banner.style.display = "block";
+      } else {
+        banner.style.display = "none";
+      }
+    } catch (e) { /* silencioso */ }
+  }
+
   restaurarVentasLocal();
   cargarDatos();
   leerVentasSheet();
+  chequearTokens();
 </script>
 </body>
 </html>
