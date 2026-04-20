@@ -681,10 +681,18 @@
   }
 
   let _stockChipFilter = "";
+  let _stockDias = 90;
+
+  function _coberturaVar(v, dias) {
+    const u = dias === 30 ? v.unidades_30 : dias === 180 ? v.unidades_180 : v.unidades_90;
+    const vel = (u || 0) / dias;
+    return vel > 0 ? v.stock / vel : null;
+  }
 
   function renderStock(d) {
     const el = document.getElementById("stock-content");
     _stockChipFilter = "";
+    const dias = _stockDias;
 
     const cobBadge = cob => {
       if (cob == null) return "—";
@@ -713,28 +721,36 @@
       + '<th class="sth" style="width:32px;text-align:center">#</th>'
       + '<th class="sth sortable" onclick="sortStock(this,1)">Producto</th>'
       + '<th class="sth sortable" onclick="sortStock(this,2)" style="width:60px;text-align:center">Stock</th>'
-      + '<th class="sth sortable" onclick="sortStock(this,3)" style="width:78px;text-align:center"><span style="font-size:10px;line-height:1.4">Ventas<br>ult. 90d</span></th>'
+      + '<th class="sth sortable" onclick="sortStock(this,3)" style="width:78px;text-align:center"><span style="font-size:10px;line-height:1.4">Ventas<br>ult. ' + dias + 'd</span></th>'
       + '<th class="sth sortable" onclick="sortStock(this,4)" style="width:74px;text-align:center">Cobertura</th>'
       + '</tr></thead>';
 
     const buildRows = (items, offset) => items.map((v, i) => {
+      const cob = _coberturaVar(v, dias);
+      const u   = dias === 30 ? (v.unidades_30||0) : dias === 180 ? (v.unidades_180||0) : (v.unidades_90||0);
       const varSpan = v.variante ? ' <span style="color:var(--muted);font-size:12px">' + v.variante + '</span>' : '';
       const skuSpan = v.sku ? '<span style="display:block;font-size:11px;color:var(--muted);font-family:monospace;margin-top:2px">' + v.sku + '</span>' : '';
       const srch = (v.nombre + ' ' + v.variante + ' ' + v.sku).toLowerCase();
-      const bg = cobBg(v.cobertura);
+      const bg = cobBg(cob);
       const trStyle = bg ? ' style="background:' + bg + '"' : '';
-      return '<tr' + trStyle + ' data-search="' + srch + '" data-cob="' + cobKey(v.cobertura) + '">'
+      return '<tr' + trStyle + ' data-search="' + srch + '" data-cob="' + cobKey(cob) + '">'
         + '<td style="text-align:center;color:var(--muted);font-size:12px">' + (offset + i + 1) + '</td>'
         + '<td>' + v.nombre + varSpan + skuSpan + '</td>'
         + '<td style="text-align:center">' + v.stock + '</td>'
-        + '<td style="text-align:center">' + v.unidades_90 + '</td>'
-        + '<td style="text-align:center">' + cobBadge(v.cobertura) + '</td>'
+        + '<td style="text-align:center">' + u + '</td>'
+        + '<td style="text-align:center">' + cobBadge(cob) + '</td>'
         + '</tr>';
     }).join('');
 
-    const n_red    = d.alertas.filter(v => v.cobertura != null && v.cobertura < 7).length;
-    const n_orange = d.alertas.filter(v => v.cobertura != null && v.cobertura >= 7 && v.cobertura < 14).length;
-    const n_yellow = d.alertas.filter(v => v.cobertura != null && v.cobertura >= 14).length;
+    const alertas = d.variantes.filter(v => { const c = _coberturaVar(v, dias); return c != null && c < 21; });
+    const n_red    = alertas.filter(v => _coberturaVar(v,dias) < 7).length;
+    const n_orange = alertas.filter(v => { const c=_coberturaVar(v,dias); return c>=7&&c<14; }).length;
+    const n_yellow = alertas.filter(v => { const c=_coberturaVar(v,dias); return c>=14&&c<21; }).length;
+    const top20    = [...d.variantes].sort((a,b) => {
+      const ua = dias===30?(a.unidades_30||0):dias===180?(a.unidades_180||0):(a.unidades_90||0);
+      const ub = dias===30?(b.unidades_30||0):dias===180?(b.unidades_180||0):(b.unidades_90||0);
+      return ub - ua;
+    }).slice(0, 20);
 
     const valTotal = d.valuacion_total || 0;
     const valMesAnt = d.valuacion_mes_anterior || null;
@@ -764,14 +780,26 @@
         + label + '</div>';
     };
 
-    const chipsLeft = '<div style="display:flex;flex-direction:column;gap:5px">'
+    const mkDiasBtn = (d2) => {
+      const active = d2 === dias;
+      return '<button onclick="cambiarDiasStock(' + d2 + ')" style="background:' + (active?'var(--success)':'var(--card)') + ';border:1px solid ' + (active?'var(--success)':'var(--border)') + ';color:' + (active?'#fff':'var(--muted)') + ';padding:3px 9px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:' + (active?'700':'400') + '">' + d2 + 'd</button>';
+    };
+
+    const diasSelector = '<div style="display:flex;align-items:center;gap:5px">'
+      + '<span style="font-size:11px;color:var(--muted)">Período:</span>'
+      + mkDiasBtn(30) + mkDiasBtn(90) + mkDiasBtn(180)
+      + '</div>';
+
+    const chipsLeft = '<div style="display:flex;flex-direction:column;gap:8px">'
+      + diasSelector
+      + '<div style="display:flex;flex-direction:column;gap:5px">'
       + '<div style="font-size:11px;color:var(--muted)">Cobertura</div>'
       + '<div id="stock-chips" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
       + mkChip(d.total, "todas",  "", "",       true)
       + mkChip(n_red,   "&lt;7d", "#f87171", "red",    false)
       + mkChip(n_orange,"&lt;14d","#fb923c", "orange", false)
       + mkChip(n_yellow,"&lt;21d","#fbbf24", "yellow", false)
-      + '</div></div>';
+      + '</div></div></div>';
 
     const chips = '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap">'
       + chipsLeft + valCard + '</div>';
@@ -788,12 +816,18 @@
         + '</div>';
     };
 
-    const alertasSec = d.alertas.length === 0 ? "" :
-      section("🚨 Alertas — cobertura &lt; 21 días (" + d.alertas.length + " variantes)", "sec-alertas",
-        '<table style="width:100%;border-collapse:collapse">' + TH + '<tbody>' + buildRows(d.alertas, 0) + '</tbody></table>', true);
+    const alertasSec = alertas.length === 0 ? "" :
+      section("🚨 Alertas — cobertura &lt; 21 días (" + alertas.length + " variantes)", "sec-alertas",
+        '<table style="width:100%;border-collapse:collapse">' + TH + '<tbody>' + buildRows(alertas, 0) + '</tbody></table>', true);
 
-    const top20Sec = section("📈 Top 20 más vendidos — últimos 90 días", "sec-top20",
-      '<table style="width:100%;border-collapse:collapse">' + TH + '<tbody>' + buildRows(d.top20, 0) + '</tbody></table>', true);
+    const top20Sec = section("📈 Top 20 más vendidos — últimos " + dias + " días", "sec-top20",
+      '<table style="width:100%;border-collapse:collapse">' + TH + '<tbody>' + buildRows(top20, 0) + '</tbody></table>', true);
+
+    const liq = d.candidatos_liquidar || [];
+    const liquidarSec = liq.length === 0 ? "" :
+      section("🏷️ Candidatos a liquidar — sin ventas en 180 días (" + liq.length + " variantes)", "sec-liquidar",
+        '<p style="font-size:12px;color:var(--muted);margin:0 0 10px">Stock &ge; 3 unidades sin ninguna venta en los últimos 6 meses.</p>'
+        + '<table style="width:100%;border-collapse:collapse">' + TH + '<tbody>' + buildRows(liq, 0) + '</tbody></table>', true);
 
     const tablaSec = section("📦 Todas las variantes (" + d.total + ")", "sec-todas",
       '<input type="text" id="stock-search" placeholder="Buscar nombre, variante o SKU..."'
@@ -808,7 +842,7 @@
       + '<button id="btn-actualizar-stock" onclick="forzarActualizarStock(this)" style="background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px">↻ Actualizar</button>'
       + '</div>';
 
-    el.innerHTML = header + chips + alertasSec + top20Sec + tablaSec;
+    el.innerHTML = header + chips + alertasSec + liquidarSec + top20Sec + tablaSec;
 
     // adjuntar click chips via JS
     document.querySelectorAll("#stock-chips [data-filter]").forEach(function(chip) {
@@ -836,6 +870,11 @@
         if (todasArrow) todasArrow.textContent = "▼";
       });
     });
+  }
+
+  function cambiarDiasStock(dias) {
+    _stockDias = dias;
+    if (_stockData) renderStock(_stockData);
   }
 
   function toggleStockSection(id) {
