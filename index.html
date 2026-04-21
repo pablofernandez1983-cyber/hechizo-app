@@ -699,14 +699,16 @@
   async function refrescarTodo() {
     const btn = document.getElementById("refresh-all-btn");
     if (btn) { btn.disabled = true; btn.style.opacity = "0.4"; }
-    // ventas (Google Sheets) + stock en paralelo
-    await Promise.all([
+    console.log("[refrescarTodo] arrancando ventas+stock");
+    const results = await Promise.allSettled([
       refrescarVentas(),
       forzarActualizarStock(null),
     ]);
+    console.log("[refrescarTodo] ventas+stock terminaron", results);
     // pequeño delay para no pisar Tiendanube, luego arranca el reporte
     await new Promise(r => setTimeout(r, 3000));
-    triggearKnime(); // fire-and-forget, el progreso se ve en tab Resultados
+    console.log("[refrescarTodo] disparando triggearKnime");
+    try { triggearKnime(); } catch (e) { console.error("[refrescarTodo] triggearKnime error", e); }
     if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
   }
 
