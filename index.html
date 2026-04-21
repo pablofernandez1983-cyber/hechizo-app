@@ -699,10 +699,14 @@
   async function refrescarTodo() {
     const btn = document.getElementById("refresh-all-btn");
     if (btn) { btn.disabled = true; btn.style.opacity = "0.4"; }
+    // ventas (Google Sheets) + stock en paralelo
     await Promise.all([
       refrescarVentas(),
       forzarActualizarStock(null),
     ]);
+    // pequeño delay para no pisar Tiendanube, luego arranca el reporte
+    await new Promise(r => setTimeout(r, 3000));
+    triggearKnime(); // fire-and-forget, el progreso se ve en tab Resultados
     if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
   }
 
