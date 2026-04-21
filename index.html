@@ -1062,7 +1062,7 @@
           cargarVentas({ silent: true }); // fire-and-forget, no bloquea la UI
           btn.disabled = false;
           btn.textContent = "↻ Refrescar resultados";
-          status.textContent = "Actualizado: " + fmtFechaReal(appData?.actualizadoEn);
+          status.textContent = "";
           wrap.classList.remove("visible");
           const warnEl = document.getElementById("warnings-resultados");
           const warns = json.warnings || [];
