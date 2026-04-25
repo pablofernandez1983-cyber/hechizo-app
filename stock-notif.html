@@ -2,136 +2,134 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Notificaciones de Stock — Hechizo Bijou</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="theme-color" content="#0e0720">
+<title>Stock — Hechizo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;color:#222;background:#fff}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e0720;--card:#231540;--accent:#c084fc;--accent2:#818cf8;
+  --danger:#f87171;--success:#34d399;--warning:#fbbf24;
+  --text:#f1e9ff;--muted:#9d8ec0;--border:rgba(192,132,252,0.15);
+}
+body{font-family:"DM Sans",sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;display:flex;flex-direction:column}
 
-/* NAV */
-.nav{border-bottom:1px solid #e5e5e5;padding:0 32px;display:flex;align-items:center;gap:0;height:52px}
-.nav-brand{font-size:15px;font-weight:700;color:#222;margin-right:32px;display:flex;align-items:center;gap:8px}
-.nav-brand svg{color:#3b82f6}
-.nav-tabs{display:flex;gap:0;flex:1}
-.nav-tab{padding:0 16px;height:52px;display:flex;align-items:center;cursor:pointer;
-         font-size:14px;color:#555;border-bottom:2px solid transparent;margin-bottom:-1px;
-         text-decoration:none}
-.nav-tab:hover{color:#222}
-.nav-tab.active{color:#222;font-weight:600;border-bottom-color:#222}
+/* ── HEADER ── */
+header{padding:calc(env(safe-area-inset-top,0px) + 16px) 20px 0;position:sticky;top:0;z-index:20;background:var(--bg)}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.brand-back{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--muted);text-decoration:none;flex-shrink:0;transition:border-color .2s}
+.brand-back:hover{border-color:var(--accent)}
+.brand-icon{font-size:20px}
+.brand-name{font-family:"DM Serif Display",serif;font-size:19px;color:var(--text)}
+.brand-sub{font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase}
 
-/* LAYOUT */
-.page{display:none;padding:40px 40px 60px}
-.page.active{display:block}
-.page-title{font-size:26px;font-weight:700;margin-bottom:4px}
-.page-sub{color:#3b82f6;font-size:14px;margin-bottom:32px}
+/* ── TABS ── */
+.tabs-wrap{display:flex;gap:8px;padding-bottom:12px;overflow-x:auto;scrollbar-width:none}
+.tabs-wrap::-webkit-scrollbar{display:none}
+.tab{flex-shrink:0;padding:6px 16px;border-radius:20px;font-size:13px;color:var(--muted);border:1px solid var(--border);background:transparent;cursor:pointer;transition:all .2s;font-family:"DM Sans",sans-serif;-webkit-tap-highlight-color:transparent}
+.tab.active{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:500}
 
-/* STATS CARDS */
-.stats-row{display:flex;gap:16px;margin-bottom:24px}
-.stat-card{flex:1;border:1px solid #e5e5e5;border-radius:8px;padding:20px 24px;text-align:center}
-.stat-icon{font-size:24px;margin-bottom:8px}
-.stat-num{font-size:32px;font-weight:700;line-height:1;margin-bottom:6px}
-.stat-label{font-size:13px;color:#666}
+/* ── MAIN ── */
+main{flex:1;padding:16px 20px 80px;display:flex;flex-direction:column;gap:12px}
+.page{display:none}
+.page.active{display:flex;flex-direction:column;gap:12px}
 
-/* FILTERS */
-.filters{display:flex;gap:12px;margin-bottom:16px;align-items:center}
-.filter-input{border:1px solid #d1d5db;border-radius:6px;padding:7px 12px;font-size:13px;
-              color:#222;outline:none;min-width:200px}
-.filter-input:focus{border-color:#3b82f6}
-.filter-select{border:1px solid #d1d5db;border-radius:6px;padding:7px 12px;font-size:13px;
-               color:#222;background:#fff;outline:none;cursor:pointer}
-.filter-select:focus{border-color:#3b82f6}
-.btn-outline{border:1px solid #d1d5db;background:#fff;color:#222;padding:7px 14px;
-             border-radius:6px;font-size:13px;cursor:pointer}
-.btn-outline:hover{background:#f9fafb}
-.btn-action{border:none;background:none;cursor:pointer;padding:4px 6px;border-radius:4px;
-            color:#9ca3af;font-size:16px;line-height:1}
-.btn-action:hover{color:#ef4444;background:#fef2f2}
-.btn-send{border:none;background:none;cursor:pointer;padding:4px 6px;border-radius:4px;
-          color:#9ca3af;font-size:16px;line-height:1}
-.btn-send:hover{color:#3b82f6;background:#eff6ff}
-.filters-right{margin-left:auto;display:flex;gap:8px}
+/* ── STAT CARDS ── */
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px 12px;text-align:center}
+.stat-icon{font-size:20px;margin-bottom:6px}
+.stat-num{font-family:"DM Serif Display",serif;font-size:26px;color:var(--text);line-height:1;margin-bottom:4px}
+.stat-label{font-size:11px;color:var(--muted)}
 
-/* TABLE */
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{text-align:left;padding:10px 12px;font-weight:600;font-size:12px;color:#666;
-   border-bottom:2px solid #e5e5e5}
-td{padding:10px 12px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
-tr:hover td{background:#fafafa}
-.td-muted{color:#999;font-size:12px}
-.td-email{color:#2563eb}
-.td-product{font-weight:500}
+/* ── FILTERS ── */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filter-input{flex:1 1 160px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:13px;color:var(--text);outline:none;font-family:"DM Sans",sans-serif}
+.filter-input::placeholder{color:var(--muted)}
+.filter-input:focus{border-color:var(--accent)}
+.filter-select{flex:1 1 120px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:13px;color:var(--text);outline:none;cursor:pointer;font-family:"DM Sans",sans-serif}
+.filter-select:focus{border-color:var(--accent)}
+.filters-right{display:flex;gap:8px;flex-wrap:wrap}
+.btn-outline{background:var(--card);border:1px solid var(--border);color:var(--muted);padding:8px 14px;border-radius:10px;font-size:12px;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all .2s;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+.btn-outline:disabled{opacity:.5;cursor:not-allowed}
 
-/* BADGE */
-.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
-.badge-pending{background:#fef3c7;color:#d97706}
-.badge-sent{background:#d1fae5;color:#059669}
-.badge-canceled{background:#f3f4f6;color:#9ca3af}
-.btn-restore{border:none;background:none;cursor:pointer;padding:4px 6px;border-radius:4px;
-             color:#9ca3af;font-size:15px;line-height:1}
-.btn-restore:hover{color:#3b82f6;background:#eff6ff}
-.td-sku{font-size:11px;color:#9ca3af;font-family:monospace}
+/* ── TABLE ── */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:16px;background:var(--card)}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:480px}
+th{text-align:left;padding:10px 14px;font-weight:500;font-size:11px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--border)}
+td{padding:11px 14px;border-bottom:1px solid rgba(192,132,252,0.07);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(192,132,252,0.04)}
+.td-muted{color:var(--muted);font-size:12px}
+.td-email{color:var(--accent2)}
+.td-product{font-weight:500;color:var(--text)}
+.td-sku{font-size:11px;color:var(--muted);font-family:monospace}
 
-/* LOADING / EMPTY */
-.loading{padding:40px;text-align:center;color:#999}
-.empty{padding:40px;text-align:center;color:#aaa}
+/* ── BADGES ── */
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500}
+.badge-pending{background:rgba(251,191,36,.12);color:var(--warning)}
+.badge-sent{background:rgba(52,211,153,.12);color:var(--success)}
+.badge-canceled{background:rgba(192,132,252,.08);color:var(--muted)}
 
-/* TOAST */
-#toast{position:fixed;bottom:24px;right:24px;background:#1a1a1a;color:#fff;
-       padding:12px 20px;border-radius:8px;font-size:13px;
-       opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999}
+/* ── ACTION BUTTONS ── */
+.btn-action,.btn-send,.btn-restore{background:none;border:none;cursor:pointer;padding:5px 7px;border-radius:8px;font-size:15px;line-height:1;transition:all .2s;-webkit-tap-highlight-color:transparent}
+.btn-action{color:var(--muted)}
+.btn-action:hover{color:var(--danger);background:rgba(248,113,113,.1)}
+.btn-send{color:var(--muted)}
+.btn-send:hover{color:var(--accent);background:rgba(192,132,252,.1)}
+.btn-restore{color:var(--muted)}
+.btn-restore:hover{color:var(--accent2);background:rgba(129,140,248,.1)}
+
+/* ── LOADING / EMPTY ── */
+.loading,.empty{padding:40px;text-align:center;color:var(--muted);font-size:13px}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:24px;right:20px;left:20px;max-width:360px;margin:0 auto;background:var(--card);border:1px solid var(--border);color:var(--text);padding:12px 18px;border-radius:12px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999;text-align:center}
 #toast.show{opacity:1}
+#toast.err{border-color:rgba(248,113,113,.4);background:#2a0e1a}
 
-/* SINGLE SEARCH for Productos */
-.search-single{max-width:360px}
-
-/* MOBILE */
-@media(max-width:640px){
-  .nav{padding:0 16px}
-  .page{padding:20px 16px 40px}
-  .stats-row{flex-direction:column;gap:10px}
-  .filters{flex-wrap:wrap;gap:8px}
-  .filter-input{min-width:0;flex:1 1 calc(50% - 4px)}
-  .filter-select{flex:1 1 100%}
-  .filters-right{margin-left:0;width:100%;display:flex;flex-wrap:wrap;gap:8px}
-  .filters-right .btn-outline{flex:1 1 calc(33% - 6px);font-size:12px;padding:6px 8px;text-align:center}
-  /* tabla clientes: scroll horizontal + columnas clave visibles */
-  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  table{min-width:520px}
-  /* ocultar SKU y Variante en mobile para que entre */
+/* ── MOBILE ── */
+@media(max-width:480px){
+  .stats-row{grid-template-columns:1fr 1fr}
+  .stat-card:last-child{grid-column:span 2}
+  .filter-input,.filter-select{flex:1 1 100%}
+  .filters-right{width:100%}
+  .filters-right .btn-outline{flex:1;text-align:center}
   th:nth-child(4),td:nth-child(4),
   th:nth-child(5),td:nth-child(5){display:none}
-  .page-title{font-size:20px}
 }
 </style>
 </head>
 <body>
 
-<nav class="nav">
-  <div class="nav-brand">
-    <a href="index.html" style="color:inherit;text-decoration:none;display:flex;align-items:center;gap:8px;margin-right:8px" title="Volver al reporte">
-      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+<header>
+  <div class="brand">
+    <a href="index.html" class="brand-back" title="Volver al reporte">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
     </a>
-    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-      <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
-    </svg>
-    Notificaciones de Stock
+    <div>
+      <div class="brand-name">🔔 Notificaciones de Stock</div>
+      <div class="brand-sub">Hechizo</div>
+    </div>
   </div>
-  <div class="nav-tabs">
-    <a class="nav-tab active" data-tab="clientes" onclick="switchTab('clientes',this)">Clientes</a>
-    <a class="nav-tab"        data-tab="productos" onclick="switchTab('productos',this)">Productos</a>
+  <div class="tabs-wrap">
+    <button class="tab active" onclick="switchTab('clientes',this)">Clientes</button>
+    <button class="tab"        onclick="switchTab('productos',this)">Productos</button>
   </div>
-</nav>
+</header>
 
-<!-- ═══ TAB CLIENTES ═══════════════════════════════════════════════════════ -->
+<main>
+
+<!-- ═══ CLIENTES ═══════════════════════════════════════════════════════════ -->
 <div id="tab-clientes" class="page active">
-  <div class="page-title">Notificaciones Solicitadas</div>
-  <div class="page-sub">Clientes que solicitaron una notificación de reposición de stock</div>
 
   <div class="stats-row">
     <div class="stat-card">
       <div class="stat-icon">📨</div>
       <div class="stat-num" id="stat-sent">—</div>
-      <div class="stat-label">Notificaciones enviadas</div>
+      <div class="stat-label">Enviadas</div>
     </div>
     <div class="stat-card">
       <div class="stat-icon">⏳</div>
@@ -141,13 +139,13 @@ tr:hover td{background:#fafafa}
     <div class="stat-card">
       <div class="stat-icon">📦</div>
       <div class="stat-num" id="stat-products">—</div>
-      <div class="stat-label">Productos distintos</div>
+      <div class="stat-label">Productos</div>
     </div>
   </div>
 
   <div class="filters">
-    <input class="filter-input" id="f-email"   placeholder="Filtrar por cliente"  oninput="applyFilters()">
-    <input class="filter-input" id="f-product" placeholder="Filtrar por producto" oninput="applyFilters()">
+    <input class="filter-input" id="f-email"   placeholder="🔍 Cliente"  oninput="applyFilters()">
+    <input class="filter-input" id="f-product" placeholder="🔍 Producto" oninput="applyFilters()">
     <select class="filter-select" id="f-status" onchange="applyFilters()">
       <option value="">Todos</option>
       <option value="pending">Esperando Stock</option>
@@ -155,61 +153,61 @@ tr:hover td{background:#fafafa}
       <option value="canceled">Cancelado</option>
     </select>
     <div class="filters-right">
-      <button class="btn-outline" id="btn-check" onclick="checkStock()" title="Consulta TN y manda mails donde haya stock">🔄 Verificar Stock</button>
-      <button class="btn-outline" onclick="setupWebhook()" title="Registrar webhook product/updated en Tiendanube">⚡ Webhook</button>
-      <button class="btn-outline" onclick="exportCSV()">Exportar</button>
+      <button class="btn-outline" id="btn-check" onclick="checkStock()">🔄 Verificar Stock</button>
+      <button class="btn-outline" onclick="setupWebhook()">⚡ Webhook</button>
+      <button class="btn-outline" onclick="exportCSV()">↓ CSV</button>
     </div>
   </div>
 
   <div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th style="width:100px">Fecha</th>
-        <th>Cliente</th>
-        <th>Producto</th>
-        <th style="width:140px">Variante</th>
-        <th style="width:90px">SKU</th>
-        <th style="width:120px">Estado</th>
-        <th style="width:70px">Acciones</th>
-      </tr>
-    </thead>
-    <tbody id="clientes-body">
-      <tr><td colspan="6" class="loading">Cargando…</td></tr>
-    </tbody>
-  </table>
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Cliente</th>
+          <th>Producto</th>
+          <th>Variante</th>
+          <th>SKU</th>
+          <th>Estado</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="clientes-body">
+        <tr><td colspan="7" class="loading">Cargando…</td></tr>
+      </tbody>
+    </table>
   </div>
 </div>
 
-<!-- ═══ TAB PRODUCTOS ══════════════════════════════════════════════════════ -->
+<!-- ═══ PRODUCTOS ══════════════════════════════════════════════════════════ -->
 <div id="tab-productos" class="page">
-  <div class="page-title">Ranking de Productos</div>
-  <div class="page-sub">Productos sin stock con más demanda. Las notificaciones ya enviadas no se cuentan.</div>
 
   <div class="filters">
-    <input class="filter-input search-single" id="f-prod-search"
-           placeholder="Filtrar por producto o variante"
-           oninput="filterProductos()">
+    <input class="filter-input" id="f-prod-search" placeholder="🔍 Producto o variante" oninput="filterProductos()" style="max-width:360px">
     <div class="filters-right">
-      <button class="btn-outline" onclick="exportProductosCSV()">Exportar</button>
+      <button class="btn-outline" onclick="exportProductosCSV()">↓ CSV</button>
     </div>
   </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Producto</th>
-        <th style="width:180px">Variante</th>
-        <th style="width:80px">Stock</th>
-        <th style="width:90px">Cantidad</th>
-        <th style="width:80px"></th>
-      </tr>
-    </thead>
-    <tbody id="productos-body">
-      <tr><td colspan="5" class="loading">Cargando…</td></tr>
-    </tbody>
-  </table>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th>Variante</th>
+          <th>Stock</th>
+          <th>Demanda</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="productos-body">
+        <tr><td colspan="5" class="loading">Cargando…</td></tr>
+      </tbody>
+    </table>
+  </div>
 </div>
+
+</main>
 
 <div id="toast"></div>
 
@@ -218,18 +216,18 @@ const API = 'https://hechizo-reporte-nuevo-production.up.railway.app';
 
 let _allClientes  = [];
 let _allProductos = [];
-
-// ── Tabs ─────────────────────────────────────────────────────────────────────
+let _activeTab    = 'clientes';
 
 function switchTab(name, el) {
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
+  _activeTab = name;
   if (name === 'productos' && _allProductos.length === 0) loadProductos();
 }
 
-// ── Clientes ──────────────────────────────────────────────────────────────────
+// ── Clientes ──────────────────────────────────────────────────────────────
 
 async function loadStats() {
   try {
@@ -240,20 +238,17 @@ async function loadStats() {
       document.getElementById('stat-pending').textContent  = d.pending.toLocaleString('es-AR');
       document.getElementById('stat-products').textContent = d.productos_esperando.toLocaleString('es-AR');
     }
-  } catch(e) { console.error('stats', e); }
+  } catch(e) {}
 }
 
 async function loadClientes() {
   try {
     const r = await fetch(API + '/notify/list');
     const d = await r.json();
-    if (d.ok) {
-      _allClientes = d.items;
-      renderClientes(_allClientes);
-    }
+    if (d.ok) { _allClientes = d.items; applyFilters(); }
   } catch(e) {
     document.getElementById('clientes-body').innerHTML =
-      '<tr><td colspan="6" class="empty">Error al cargar datos</td></tr>';
+      '<tr><td colspan="7" class="empty">Error al cargar datos</td></tr>';
   }
 }
 
@@ -261,39 +256,35 @@ function applyFilters() {
   const email   = document.getElementById('f-email').value.toLowerCase().trim();
   const product = document.getElementById('f-product').value.toLowerCase().trim();
   const status  = document.getElementById('f-status').value;
-
-  const filtered = _allClientes.filter(r => {
-    if (email   && !r.email.includes(email))           return false;
-    if (product && !(
-      r.product_name.toLowerCase().includes(product) ||
-      (r.variant_name||'').toLowerCase().includes(product)
-    ))                                                 return false;
-    if (status  && r.status !== status)                return false;
+  renderClientes(_allClientes.filter(r => {
+    if (email   && !r.email.toLowerCase().includes(email)) return false;
+    if (product && !(r.product_name.toLowerCase().includes(product) ||
+        (r.variant_name||'').toLowerCase().includes(product)))  return false;
+    if (status  && r.status !== status)                         return false;
     return true;
-  });
-  renderClientes(filtered);
+  }));
 }
 
 function renderClientes(items) {
   const tbody = document.getElementById('clientes-body');
   if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">Sin resultados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin resultados</td></tr>';
     return;
   }
   tbody.innerHTML = items.map(r => {
     const fecha = r.created_at
-      ? new Date(r.created_at).toLocaleDateString('es-AR',{day:'numeric',month:'numeric',year:'numeric'})
+      ? new Date(r.created_at).toLocaleDateString('es-AR',{day:'numeric',month:'numeric'})
       : '—';
     const badge = r.status === 'sent'
       ? '<span class="badge badge-sent">Notificado</span>'
       : r.status === 'canceled'
         ? '<span class="badge badge-canceled">Cancelado</span>'
-        : '<span class="badge badge-pending">Esperando Stock</span>';
+        : '<span class="badge badge-pending">Esperando</span>';
     const variant = r.variant_name ? esc(r.variant_name) : '<span class="td-muted">—</span>';
     const sku     = r.sku ? `<span class="td-sku">${esc(r.sku)}</span>` : '<span class="td-muted">—</span>';
     const actions = r.status === 'canceled'
-      ? `<button class="btn-restore" title="Restaurar a pendiente" onclick="restoreNotif(${r.id})">↩</button>`
-      : `<button class="btn-action"  title="Cancelar" onclick="deleteNotif(${r.id})">⊗</button>`;
+      ? `<button class="btn-restore" title="Restaurar" onclick="restoreNotif(${r.id})">↩</button>`
+      : `<button class="btn-action"  title="Cancelar"  onclick="deleteNotif(${r.id})">⊗</button>`;
     return `<tr>
       <td class="td-muted">${fecha}</td>
       <td><span class="td-email">${esc(r.email)}</span></td>
@@ -308,45 +299,36 @@ function renderClientes(items) {
 
 async function deleteNotif(id) {
   if (!confirm('¿Cancelar esta notificación?')) return;
-  try {
-    const r = await fetch(API + '/notify/' + id, {method:'DELETE'});
-    const d = await r.json();
-    if (d.ok) {
-      const item = _allClientes.find(x => x.id === id);
-      if (item) item.status = 'canceled';
-      applyFilters();
-      loadStats();
-      showToast('Notificación cancelada');
-    }
-  } catch(e) { showToast('Error al cancelar', true); }
+  const r = await fetch(API + '/notify/' + id, {method:'DELETE'});
+  const d = await r.json();
+  if (d.ok) {
+    const item = _allClientes.find(x => x.id === id);
+    if (item) item.status = 'canceled';
+    applyFilters(); loadStats();
+    showToast('Notificación cancelada');
+  }
 }
 
 async function restoreNotif(id) {
-  try {
-    const r = await fetch(API + '/notify/' + id + '/restore', {method:'POST'});
-    const d = await r.json();
-    if (d.ok) {
-      const item = _allClientes.find(x => x.id === id);
-      if (item) { item.status = 'pending'; item.sent_at = null; }
-      applyFilters();
-      loadStats();
-      showToast('Notificación restaurada');
-    }
-  } catch(e) { showToast('Error al restaurar', true); }
+  const r = await fetch(API + '/notify/' + id + '/restore', {method:'POST'});
+  const d = await r.json();
+  if (d.ok) {
+    const item = _allClientes.find(x => x.id === id);
+    if (item) { item.status = 'pending'; item.sent_at = null; }
+    applyFilters(); loadStats();
+    showToast('Notificación restaurada');
+  }
 }
 
-// ── Productos ─────────────────────────────────────────────────────────────────
+// ── Productos ─────────────────────────────────────────────────────────────
 
 async function loadProductos() {
   document.getElementById('productos-body').innerHTML =
-    '<tr><td colspan="5" class="loading">Cargando stock desde Tiendanube…</td></tr>';
+    '<tr><td colspan="5" class="loading">Cargando desde Tiendanube…</td></tr>';
   try {
     const r = await fetch(API + '/notify/products');
     const d = await r.json();
-    if (d.ok) {
-      _allProductos = d.items;
-      renderProductos(_allProductos);
-    }
+    if (d.ok) { _allProductos = d.items; renderProductos(_allProductos); }
   } catch(e) {
     document.getElementById('productos-body').innerHTML =
       '<tr><td colspan="5" class="empty">Error al cargar datos</td></tr>';
@@ -355,11 +337,9 @@ async function loadProductos() {
 
 function filterProductos() {
   const q = document.getElementById('f-prod-search').value.toLowerCase().trim();
-  const filtered = _allProductos.filter(r =>
-    r.product_name.toLowerCase().includes(q) ||
-    (r.variant_name||'').toLowerCase().includes(q)
-  );
-  renderProductos(filtered);
+  renderProductos(_allProductos.filter(r =>
+    r.product_name.toLowerCase().includes(q) || (r.variant_name||'').toLowerCase().includes(q)
+  ));
 }
 
 function renderProductos(items) {
@@ -369,51 +349,41 @@ function renderProductos(items) {
     return;
   }
   tbody.innerHTML = items.map(r => {
-    const stock = r.current_stock !== null && r.current_stock !== undefined
-      ? r.current_stock
-      : '<span class="td-muted">—</span>';
+    const stock   = r.current_stock != null ? r.current_stock : '<span class="td-muted">—</span>';
     const variant = r.variant_name ? esc(r.variant_name) : '<span class="td-muted">—</span>';
-    const cantStyle = r.cantidad >= 5 ? 'color:#2563eb;font-weight:700' : '';
-    return `<tr data-search="${esc((r.product_name+' '+(r.variant_name||'')).toLowerCase())}">
+    const demStyle = r.cantidad >= 5 ? `color:var(--accent);font-weight:500` : '';
+    return `<tr>
       <td class="td-product">${esc(r.product_name)}</td>
       <td>${variant}</td>
       <td>${stock}</td>
-      <td style="${cantStyle}">${r.cantidad}</td>
+      <td style="${demStyle}">${r.cantidad}</td>
       <td>
-        <button class="btn-send" title="Enviar notificaciones" onclick="sendVariant(${r.variant_id},'${esc(r.product_name)}',this)">✈</button>
-        <button class="btn-action" title="Descartar solicitudes" onclick="discardVariant(${r.variant_id}, this)">⊗</button>
+        <button class="btn-send"   title="Enviar notificaciones" onclick="sendVariant(${r.variant_id},'${esc(r.product_name)}',this)">✈</button>
+        <button class="btn-action" title="Descartar solicitudes" onclick="discardVariant(${r.variant_id},this)">⊗</button>
       </td>
     </tr>`;
   }).join('');
 }
 
 async function sendVariant(variantId, productName, btn) {
-  if (!confirm(`¿Enviar notificaciones de "${productName}" a todos los clientes que están esperando?`)) return;
+  if (!confirm(`¿Enviar notificaciones de "${productName}"?`)) return;
   const row = btn.closest('tr');
-  row.style.opacity = '.5';
+  row.style.opacity = '.4';
   try {
     const r = await fetch(API + '/notify/send/' + variantId, {method:'POST'});
     const d = await r.json();
     row.style.opacity = '1';
     if (d.ok) {
       showToast(`✓ ${d.enviados} mail(s) enviado(s)`);
-      // reload both tabs
-      _allProductos = [];
-      _allClientes  = [];
-      loadClientes();
-      loadStats();
-      loadProductos();
+      _allProductos=[]; _allClientes=[]; loadClientes(); loadStats(); loadProductos();
     }
-  } catch(e) {
-    row.style.opacity = '1';
-    showToast('Error al enviar', true);
-  }
+  } catch(e) { row.style.opacity='1'; showToast('Error al enviar', true); }
 }
 
 async function discardVariant(variantId, btn) {
-  if (!confirm('¿Eliminar todas las solicitudes pendientes de este producto?')) return;
+  if (!confirm('¿Eliminar solicitudes pendientes de este producto?')) return;
   const row = btn.closest('tr');
-  row.style.opacity = '.5';
+  row.style.opacity = '.4';
   try {
     const r = await fetch(API + '/notify/variant/' + variantId, {method:'DELETE'});
     const d = await r.json();
@@ -421,78 +391,17 @@ async function discardVariant(variantId, btn) {
     if (d.ok) {
       _allProductos = _allProductos.filter(x => x.variant_id !== variantId);
       _allClientes  = _allClientes.filter(x => !(x.variant_id === variantId && x.status === 'pending'));
-      renderProductos(_allProductos);
-      applyFilters();
-      loadStats();
+      renderProductos(_allProductos); applyFilters(); loadStats();
       showToast(`Solicitudes eliminadas (${d.eliminados})`);
-    } else {
-      showToast('Error al eliminar', true);
     }
-  } catch(e) {
-    row.style.opacity = '1';
-    showToast('Error al eliminar', true);
-  }
+  } catch(e) { row.style.opacity='1'; showToast('Error al eliminar', true); }
 }
 
-// ── CSV Export ─────────────────────────────────────────────────────────────────
-
-function exportCSV() {
-  const email   = document.getElementById('f-email').value.toLowerCase().trim();
-  const product = document.getElementById('f-product').value.toLowerCase().trim();
-  const status  = document.getElementById('f-status').value;
-  const rows    = _allClientes.filter(r => {
-    if (email   && !r.email.includes(email))   return false;
-    if (product && !(r.product_name.toLowerCase().includes(product) || (r.variant_name||'').toLowerCase().includes(product))) return false;
-    if (status  && r.status !== status)        return false;
-    return true;
-  });
-  const header = ['Fecha','Email','Producto','Variante','SKU','Estado'];
-  const lines  = [header.join(','), ...rows.map(r => [
-    r.created_at ? new Date(r.created_at).toLocaleDateString('es-AR') : '',
-    r.email, r.product_name, r.variant_name||'', r.sku||'', r.status
-  ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))];
-  downloadCSV('notificaciones.csv', lines.join('\n'));
-}
-
-function exportProductosCSV() {
-  const q    = document.getElementById('f-prod-search').value.toLowerCase().trim();
-  const rows = _allProductos.filter(r =>
-    r.product_name.toLowerCase().includes(q) || (r.variant_name||'').toLowerCase().includes(q)
-  );
-  const header = ['Producto','Variante','Stock Actual','Cantidad Solicitantes'];
-  const lines  = [header.join(','), ...rows.map(r => [
-    r.product_name, r.variant_name||'', r.current_stock ?? '', r.cantidad
-  ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))];
-  downloadCSV('productos-sin-stock.csv', lines.join('\n'));
-}
-
-function downloadCSV(filename, content) {
-  const a    = document.createElement('a');
-  a.href     = 'data:text/csv;charset=utf-8,' + encodeURIComponent('﻿' + content);
-  a.download = filename;
-  a.click();
-}
-
-// ── Utils ─────────────────────────────────────────────────────────────────────
-
-function esc(str) {
-  return String(str||'')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;');
-}
-
-function showToast(msg, isError) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.background = isError ? '#dc2626' : '#1a1a1a';
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
+// ── Acciones ──────────────────────────────────────────────────────────────
 
 async function checkStock() {
   const btn = document.getElementById('btn-check');
-  btn.disabled = true;
-  btn.textContent = '⏳ Verificando…';
+  btn.disabled = true; btn.textContent = '⏳ Verificando…';
   try {
     const r = await fetch(API + '/notify/check-stock', {method:'POST'});
     const d = await r.json();
@@ -503,32 +412,74 @@ async function checkStock() {
       } else {
         const stocks = d.stock_encontrado || {};
         const detail = Object.keys(stocks).length
-          ? ' · stock: ' + Object.entries(stocks).map(([k,v]) => `v${k}=${v}`).join(', ')
-          : '';
+          ? ' · ' + Object.entries(stocks).map(([k,v]) => `v${k}=${v}`).join(', ') : '';
         showToast('Sin stock nuevo para notificar' + detail);
       }
-    } else {
-      showToast('Error: ' + (d.error||'desconocido'), true);
-    }
+    } else { showToast('Error: ' + (d.error||'desconocido'), true); }
   } catch(e) { showToast('Error al verificar', true); }
-  btn.disabled = false;
-  btn.textContent = '🔄 Verificar Stock';
+  btn.disabled = false; btn.textContent = '🔄 Verificar Stock';
 }
 
 async function setupWebhook() {
-  if (!confirm('¿Re-registrar webhook product/updated en Tiendanube?')) return;
+  if (!confirm('¿Re-registrar webhook en Tiendanube?')) return;
   try {
     const r = await fetch(API + '/tiendanube/setup-webhook');
     const d = await r.json();
-    if (d.ok) {
-      showToast('✓ Webhook registrado');
-    } else {
-      showToast('Respuesta: ' + JSON.stringify(d.detail || d), true);
-    }
+    d.ok ? showToast('✓ Webhook registrado') : showToast('Error: ' + JSON.stringify(d.detail||d), true);
   } catch(e) { showToast('Error: ' + e.message, true); }
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// ── CSV ───────────────────────────────────────────────────────────────────
+
+function exportCSV() {
+  const email   = document.getElementById('f-email').value.toLowerCase().trim();
+  const product = document.getElementById('f-product').value.toLowerCase().trim();
+  const status  = document.getElementById('f-status').value;
+  const rows    = _allClientes.filter(r => {
+    if (email   && !r.email.toLowerCase().includes(email)) return false;
+    if (product && !(r.product_name.toLowerCase().includes(product) || (r.variant_name||'').toLowerCase().includes(product))) return false;
+    if (status  && r.status !== status) return false;
+    return true;
+  });
+  const lines = [['Fecha','Email','Producto','Variante','SKU','Estado'].join(','),
+    ...rows.map(r => [
+      r.created_at ? new Date(r.created_at).toLocaleDateString('es-AR') : '',
+      r.email, r.product_name, r.variant_name||'', r.sku||'', r.status
+    ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))];
+  downloadCSV('notificaciones.csv', lines.join('\n'));
+}
+
+function exportProductosCSV() {
+  const q    = document.getElementById('f-prod-search').value.toLowerCase().trim();
+  const rows = _allProductos.filter(r =>
+    r.product_name.toLowerCase().includes(q) || (r.variant_name||'').toLowerCase().includes(q)
+  );
+  const lines = [['Producto','Variante','Stock Actual','Cantidad'].join(','),
+    ...rows.map(r => [r.product_name, r.variant_name||'', r.current_stock??'', r.cantidad]
+      .map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))];
+  downloadCSV('productos-sin-stock.csv', lines.join('\n'));
+}
+
+function downloadCSV(filename, content) {
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent('﻿' + content);
+  a.download = filename; a.click();
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────
+
+function esc(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = isError ? 'err show' : 'show';
+  setTimeout(() => t.className = '', 3000);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
 
 loadStats();
 loadClientes();
