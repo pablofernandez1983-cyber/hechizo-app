@@ -83,6 +83,25 @@ tr:hover td{background:#fafafa}
 
 /* SINGLE SEARCH for Productos */
 .search-single{max-width:360px}
+
+/* MOBILE */
+@media(max-width:640px){
+  .nav{padding:0 16px}
+  .page{padding:20px 16px 40px}
+  .stats-row{flex-direction:column;gap:10px}
+  .filters{flex-wrap:wrap;gap:8px}
+  .filter-input{min-width:0;flex:1 1 calc(50% - 4px)}
+  .filter-select{flex:1 1 100%}
+  .filters-right{margin-left:0;width:100%;display:flex;flex-wrap:wrap;gap:8px}
+  .filters-right .btn-outline{flex:1 1 calc(33% - 6px);font-size:12px;padding:6px 8px;text-align:center}
+  /* tabla clientes: scroll horizontal + columnas clave visibles */
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{min-width:520px}
+  /* ocultar SKU y Variante en mobile para que entre */
+  th:nth-child(4),td:nth-child(4),
+  th:nth-child(5),td:nth-child(5){display:none}
+  .page-title{font-size:20px}
+}
 </style>
 </head>
 <body>
@@ -142,6 +161,7 @@ tr:hover td{background:#fafafa}
     </div>
   </div>
 
+  <div class="table-wrap">
   <table>
     <thead>
       <tr>
@@ -158,6 +178,7 @@ tr:hover td{background:#fafafa}
       <tr><td colspan="6" class="loading">Cargando…</td></tr>
     </tbody>
   </table>
+  </div>
 </div>
 
 <!-- ═══ TAB PRODUCTOS ══════════════════════════════════════════════════════ -->
