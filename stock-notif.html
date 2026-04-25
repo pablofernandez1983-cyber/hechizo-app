@@ -476,11 +476,16 @@ async function checkStock() {
     const r = await fetch(API + '/notify/check-stock', {method:'POST'});
     const d = await r.json();
     if (d.ok) {
-      const msg = d.enviados > 0
-        ? `✓ ${d.enviados} mail(s) enviado(s) automáticamente`
-        : 'Sin stock nuevo para notificar';
-      showToast(msg);
-      if (d.enviados > 0) { _allClientes=[]; _allProductos=[]; loadClientes(); loadStats(); }
+      if (d.enviados > 0) {
+        showToast(`✓ ${d.enviados} mail(s) enviado(s)`);
+        _allClientes=[]; _allProductos=[]; loadClientes(); loadStats();
+      } else {
+        const stocks = d.stock_encontrado || {};
+        const detail = Object.keys(stocks).length
+          ? ' · stock: ' + Object.entries(stocks).map(([k,v]) => `v${k}=${v}`).join(', ')
+          : '';
+        showToast('Sin stock nuevo para notificar' + detail);
+      }
     } else {
       showToast('Error: ' + (d.error||'desconocido'), true);
     }
