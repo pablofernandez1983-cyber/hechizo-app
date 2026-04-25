@@ -84,6 +84,9 @@ tr:hover td{background:#fafafa}
 
 <nav class="nav">
   <div class="nav-brand">
+    <a href="index.html" style="color:inherit;text-decoration:none;display:flex;align-items:center;gap:8px;margin-right:8px" title="Volver al reporte">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+    </a>
     <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
       <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
     </svg>
@@ -128,6 +131,7 @@ tr:hover td{background:#fafafa}
     </select>
     <div class="filters-right">
       <button class="btn-outline" id="btn-check" onclick="checkStock()" title="Consulta TN y manda mails donde haya stock">🔄 Verificar Stock</button>
+      <button class="btn-outline" onclick="setupWebhook()" title="Registrar webhook product/updated en Tiendanube">⚡ Webhook</button>
       <button class="btn-outline" onclick="exportCSV()">Exportar</button>
     </div>
   </div>
@@ -360,21 +364,26 @@ async function sendVariant(variantId, productName, btn) {
 
 async function discardVariant(variantId, btn) {
   if (!confirm('¿Eliminar todas las solicitudes pendientes de este producto?')) return;
-  const row   = btn.closest('tr');
-  // find all clientes with this variant and delete them one by one
-  const ids   = _allClientes.filter(x => x.variant_id === variantId && x.status === 'pending').map(x => x.id);
+  const row = btn.closest('tr');
   row.style.opacity = '.5';
-  // We don't have a bulk delete endpoint — delete one by one
-  for (const id of ids) {
-    await fetch(API + '/notify/' + id, {method:'DELETE'}).catch(()=>{});
+  try {
+    const r = await fetch(API + '/notify/variant/' + variantId, {method:'DELETE'});
+    const d = await r.json();
+    row.style.opacity = '1';
+    if (d.ok) {
+      _allProductos = _allProductos.filter(x => x.variant_id !== variantId);
+      _allClientes  = _allClientes.filter(x => !(x.variant_id === variantId && x.status === 'pending'));
+      renderProductos(_allProductos);
+      applyFilters();
+      loadStats();
+      showToast(`Solicitudes eliminadas (${d.eliminados})`);
+    } else {
+      showToast('Error al eliminar', true);
+    }
+  } catch(e) {
+    row.style.opacity = '1';
+    showToast('Error al eliminar', true);
   }
-  row.style.opacity = '1';
-  _allProductos = _allProductos.filter(x => x.variant_id !== variantId);
-  _allClientes  = _allClientes.filter(x => !(x.variant_id === variantId && x.status === 'pending'));
-  renderProductos(_allProductos);
-  applyFilters();
-  loadStats();
-  showToast('Solicitudes eliminadas');
 }
 
 // ── CSV Export ─────────────────────────────────────────────────────────────────
@@ -451,6 +460,19 @@ async function checkStock() {
   } catch(e) { showToast('Error al verificar', true); }
   btn.disabled = false;
   btn.textContent = '🔄 Verificar Stock';
+}
+
+async function setupWebhook() {
+  if (!confirm('¿Re-registrar webhook product/updated en Tiendanube?')) return;
+  try {
+    const r = await fetch(API + '/tiendanube/setup-webhook');
+    const d = await r.json();
+    if (d.ok) {
+      showToast('✓ Webhook registrado');
+    } else {
+      showToast('Respuesta: ' + JSON.stringify(d.detail || d), true);
+    }
+  } catch(e) { showToast('Error: ' + e.message, true); }
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
