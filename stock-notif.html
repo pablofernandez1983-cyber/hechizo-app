@@ -65,6 +65,11 @@ tr:hover td{background:#fafafa}
 .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
 .badge-pending{background:#fef3c7;color:#d97706}
 .badge-sent{background:#d1fae5;color:#059669}
+.badge-canceled{background:#f3f4f6;color:#9ca3af}
+.btn-restore{border:none;background:none;cursor:pointer;padding:4px 6px;border-radius:4px;
+             color:#9ca3af;font-size:15px;line-height:1}
+.btn-restore:hover{color:#3b82f6;background:#eff6ff}
+.td-sku{font-size:11px;color:#9ca3af;font-family:monospace}
 
 /* LOADING / EMPTY */
 .loading{padding:40px;text-align:center;color:#999}
@@ -125,9 +130,10 @@ tr:hover td{background:#fafafa}
     <input class="filter-input" id="f-email"   placeholder="Filtrar por cliente"  oninput="applyFilters()">
     <input class="filter-input" id="f-product" placeholder="Filtrar por producto" oninput="applyFilters()">
     <select class="filter-select" id="f-status" onchange="applyFilters()">
-      <option value="">Todos los estados</option>
+      <option value="">Todos</option>
       <option value="pending">Esperando Stock</option>
       <option value="sent">Notificado</option>
+      <option value="canceled">Cancelado</option>
     </select>
     <div class="filters-right">
       <button class="btn-outline" id="btn-check" onclick="checkStock()" title="Consulta TN y manda mails donde haya stock">🔄 Verificar Stock</button>
@@ -139,12 +145,13 @@ tr:hover td{background:#fafafa}
   <table>
     <thead>
       <tr>
-        <th style="width:110px">Fecha</th>
+        <th style="width:100px">Fecha</th>
         <th>Cliente</th>
         <th>Producto</th>
-        <th>Variante</th>
+        <th style="width:140px">Variante</th>
+        <th style="width:90px">SKU</th>
         <th style="width:120px">Estado</th>
-        <th style="width:60px">Envío</th>
+        <th style="width:70px">Acciones</th>
       </tr>
     </thead>
     <tbody id="clientes-body">
@@ -258,33 +265,53 @@ function renderClientes(items) {
       : '—';
     const badge = r.status === 'sent'
       ? '<span class="badge badge-sent">Notificado</span>'
-      : '<span class="badge badge-pending">Esperando Stock</span>';
+      : r.status === 'canceled'
+        ? '<span class="badge badge-canceled">Cancelado</span>'
+        : '<span class="badge badge-pending">Esperando Stock</span>';
     const variant = r.variant_name ? esc(r.variant_name) : '<span class="td-muted">—</span>';
+    const sku     = r.sku ? `<span class="td-sku">${esc(r.sku)}</span>` : '<span class="td-muted">—</span>';
+    const actions = r.status === 'canceled'
+      ? `<button class="btn-restore" title="Restaurar a pendiente" onclick="restoreNotif(${r.id})">↩</button>`
+      : `<button class="btn-action"  title="Cancelar" onclick="deleteNotif(${r.id})">⊗</button>`;
     return `<tr>
       <td class="td-muted">${fecha}</td>
       <td><span class="td-email">${esc(r.email)}</span></td>
       <td class="td-product">${esc(r.product_name)}</td>
       <td>${variant}</td>
+      <td>${sku}</td>
       <td>${badge}</td>
-      <td>
-        <button class="btn-action" title="Eliminar" onclick="deleteNotif(${r.id})">⊗</button>
-      </td>
+      <td>${actions}</td>
     </tr>`;
   }).join('');
 }
 
 async function deleteNotif(id) {
-  if (!confirm('¿Eliminar esta notificación?')) return;
+  if (!confirm('¿Cancelar esta notificación?')) return;
   try {
     const r = await fetch(API + '/notify/' + id, {method:'DELETE'});
     const d = await r.json();
     if (d.ok) {
-      _allClientes = _allClientes.filter(x => x.id !== id);
+      const item = _allClientes.find(x => x.id === id);
+      if (item) item.status = 'canceled';
       applyFilters();
       loadStats();
-      showToast('Notificación eliminada');
+      showToast('Notificación cancelada');
     }
-  } catch(e) { showToast('Error al eliminar', true); }
+  } catch(e) { showToast('Error al cancelar', true); }
+}
+
+async function restoreNotif(id) {
+  try {
+    const r = await fetch(API + '/notify/' + id + '/restore', {method:'POST'});
+    const d = await r.json();
+    if (d.ok) {
+      const item = _allClientes.find(x => x.id === id);
+      if (item) { item.status = 'pending'; item.sent_at = null; }
+      applyFilters();
+      loadStats();
+      showToast('Notificación restaurada');
+    }
+  } catch(e) { showToast('Error al restaurar', true); }
 }
 
 // ── Productos ─────────────────────────────────────────────────────────────────
@@ -398,10 +425,10 @@ function exportCSV() {
     if (status  && r.status !== status)        return false;
     return true;
   });
-  const header = ['Fecha','Email','Producto','Variante','Estado'];
+  const header = ['Fecha','Email','Producto','Variante','SKU','Estado'];
   const lines  = [header.join(','), ...rows.map(r => [
     r.created_at ? new Date(r.created_at).toLocaleDateString('es-AR') : '',
-    r.email, r.product_name, r.variant_name||'', r.status
+    r.email, r.product_name, r.variant_name||'', r.sku||'', r.status
   ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))];
   downloadCSV('notificaciones.csv', lines.join('\n'));
 }
