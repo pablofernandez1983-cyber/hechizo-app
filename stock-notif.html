@@ -254,12 +254,12 @@ function renderClientes(items) {
     const badge = r.status === 'sent'
       ? '<span class="badge badge-sent">Notificado</span>'
       : '<span class="badge badge-pending">Esperando Stock</span>';
-    const variant = r.variant_name || '<span class="td-muted">—</span>';
+    const variant = r.variant_name ? esc(r.variant_name) : '<span class="td-muted">—</span>';
     return `<tr>
       <td class="td-muted">${fecha}</td>
       <td><span class="td-email">${esc(r.email)}</span></td>
       <td class="td-product">${esc(r.product_name)}</td>
-      <td>${esc(variant)}</td>
+      <td>${variant}</td>
       <td>${badge}</td>
       <td>
         <button class="btn-action" title="Eliminar" onclick="deleteNotif(${r.id})">⊗</button>
@@ -319,7 +319,7 @@ function renderProductos(items) {
     const stock = r.current_stock !== null && r.current_stock !== undefined
       ? r.current_stock
       : '<span class="td-muted">—</span>';
-    const variant = r.variant_name || '<span class="td-muted">—</span>';
+    const variant = r.variant_name ? esc(r.variant_name) : '<span class="td-muted">—</span>';
     const cantStyle = r.cantidad >= 5 ? 'color:#2563eb;font-weight:700' : '';
     return `<tr data-search="${esc((r.product_name+' '+(r.variant_name||'')).toLowerCase())}">
       <td class="td-product">${esc(r.product_name)}</td>
