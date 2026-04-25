@@ -57,13 +57,13 @@ main{flex:1;padding:16px 20px 80px;display:flex;flex-direction:column;gap:12px}
 
 /* ── TABLE ── */
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:16px;background:var(--card)}
-table{width:100%;border-collapse:collapse;font-size:13px;min-width:480px}
-th{text-align:left;padding:10px 14px;font-weight:500;font-size:11px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 14px;font-weight:500;font-size:11px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap}
 td{padding:11px 14px;border-bottom:1px solid rgba(192,132,252,0.07);vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:rgba(192,132,252,0.04)}
 .td-muted{color:var(--muted);font-size:12px}
-.td-email{color:var(--accent2)}
+.td-email{color:var(--accent2);word-break:break-all;font-size:12px}
 .td-product{font-weight:500;color:var(--text)}
 .td-sku{font-size:11px;color:var(--muted);font-family:monospace}
 
@@ -91,14 +91,32 @@ tr:hover td{background:rgba(192,132,252,0.04)}
 #toast.err{border-color:rgba(248,113,113,.4);background:#2a0e1a}
 
 /* ── MOBILE ── */
-@media(max-width:480px){
-  .stats-row{grid-template-columns:1fr 1fr}
-  .stat-card:last-child{grid-column:span 2}
+@media(max-width:600px){
+  main{padding:12px 12px 80px}
+
+  /* Cards: 3 en una sola fila, más compactas */
+  .stats-row{grid-template-columns:repeat(3,1fr);gap:6px}
+  .stat-card{padding:10px 6px;border-radius:12px}
+  .stat-icon{font-size:16px;margin-bottom:4px}
+  .stat-num{font-size:20px;margin-bottom:2px}
+  .stat-label{font-size:10px}
+
+  /* Filtros apilados */
   .filter-input,.filter-select{flex:1 1 100%}
   .filters-right{width:100%}
-  .filters-right .btn-outline{flex:1;text-align:center}
-  th:nth-child(4),td:nth-child(4),
-  th:nth-child(5),td:nth-child(5){display:none}
+  .filters-right .btn-outline{flex:1;text-align:center;padding:7px 6px;font-size:11px}
+
+  /* Tabla Clientes: padding reducido, ocultar SKU y Variante */
+  #tab-clientes th,#tab-clientes td{padding:8px 8px;font-size:12px}
+  #tab-clientes th:nth-child(4),#tab-clientes td:nth-child(4),
+  #tab-clientes th:nth-child(5),#tab-clientes td:nth-child(5){display:none}
+  .td-email{font-size:11px}
+  .td-product{font-size:12px}
+  .badge{padding:2px 7px;font-size:10px}
+
+  /* Tabla Productos: padding reducido, todo entra */
+  #tab-productos th,#tab-productos td{padding:8px 8px;font-size:12px}
+  #tab-productos .td-product{font-size:12px}
 }
 </style>
 </head>
