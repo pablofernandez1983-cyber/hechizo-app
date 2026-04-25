@@ -194,7 +194,6 @@ tr:hover td{background:rgba(192,132,252,0.04)}
       <thead>
         <tr>
           <th>Producto</th>
-          <th>Variante</th>
           <th>Stock</th>
           <th>Demanda</th>
           <th></th>
@@ -354,23 +353,22 @@ function renderProductos(items) {
     const demStyle = r.cantidad >= 5 ? `color:var(--accent);font-weight:500` : '';
     return `<tr>
       <td class="td-product">${esc(r.product_name)}</td>
-      <td>${variant}</td>
       <td>${stock}</td>
       <td style="${demStyle}">${r.cantidad}</td>
       <td>
-        <button class="btn-send"   title="Enviar notificaciones" onclick="sendVariant(${r.variant_id},'${esc(r.product_name)}',this)">✈</button>
-        <button class="btn-action" title="Descartar solicitudes" onclick="discardVariant(${r.variant_id},this)">⊗</button>
+        <button class="btn-send"   title="Enviar notificaciones" onclick="sendProduct(${r.product_id},'${esc(r.product_name)}',this)">✈</button>
+        <button class="btn-action" title="Descartar solicitudes" onclick="discardProduct(${r.product_id},this)">⊗</button>
       </td>
     </tr>`;
   }).join('');
 }
 
-async function sendVariant(variantId, productName, btn) {
+async function sendProduct(productId, productName, btn) {
   if (!confirm(`¿Enviar notificaciones de "${productName}"?`)) return;
   const row = btn.closest('tr');
   row.style.opacity = '.4';
   try {
-    const r = await fetch(API + '/notify/send/' + variantId, {method:'POST'});
+    const r = await fetch(API + '/notify/send-product/' + productId, {method:'POST'});
     const d = await r.json();
     row.style.opacity = '1';
     if (d.ok) {
@@ -380,17 +378,17 @@ async function sendVariant(variantId, productName, btn) {
   } catch(e) { row.style.opacity='1'; showToast('Error al enviar', true); }
 }
 
-async function discardVariant(variantId, btn) {
+async function discardProduct(productId, btn) {
   if (!confirm('¿Eliminar solicitudes pendientes de este producto?')) return;
   const row = btn.closest('tr');
   row.style.opacity = '.4';
   try {
-    const r = await fetch(API + '/notify/variant/' + variantId, {method:'DELETE'});
+    const r = await fetch(API + '/notify/product/' + productId, {method:'DELETE'});
     const d = await r.json();
     row.style.opacity = '1';
     if (d.ok) {
-      _allProductos = _allProductos.filter(x => x.variant_id !== variantId);
-      _allClientes  = _allClientes.filter(x => !(x.variant_id === variantId && x.status === 'pending'));
+      _allProductos = _allProductos.filter(x => x.product_id !== productId);
+      _allClientes  = _allClientes.filter(x => !(x.product_id === productId && x.status === 'pending'));
       renderProductos(_allProductos); applyFilters(); loadStats();
       showToast(`Solicitudes eliminadas (${d.eliminados})`);
     }
