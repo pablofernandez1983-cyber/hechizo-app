@@ -324,7 +324,7 @@ function renderProductos(items) {
     const cantStyle = r.cantidad >= 5 ? 'color:#2563eb;font-weight:700' : '';
     return `<tr data-search="${esc((r.product_name+' '+(r.variant_name||'')).toLowerCase())}">
       <td class="td-product">${esc(r.product_name)}</td>
-      <td>${esc(variant)}</td>
+      <td>${variant}</td>
       <td>${stock}</td>
       <td style="${cantStyle}">${r.cantidad}</td>
       <td>
