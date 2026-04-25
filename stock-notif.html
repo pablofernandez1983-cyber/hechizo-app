@@ -127,6 +127,7 @@ tr:hover td{background:#fafafa}
       <option value="sent">Notificado</option>
     </select>
     <div class="filters-right">
+      <button class="btn-outline" id="btn-check" onclick="checkStock()" title="Consulta TN y manda mails donde haya stock">🔄 Verificar Stock</button>
       <button class="btn-outline" onclick="exportCSV()">Exportar</button>
     </div>
   </div>
@@ -429,6 +430,27 @@ function showToast(msg, isError) {
   t.style.background = isError ? '#dc2626' : '#1a1a1a';
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+async function checkStock() {
+  const btn = document.getElementById('btn-check');
+  btn.disabled = true;
+  btn.textContent = '⏳ Verificando…';
+  try {
+    const r = await fetch(API + '/notify/check-stock', {method:'POST'});
+    const d = await r.json();
+    if (d.ok) {
+      const msg = d.enviados > 0
+        ? `✓ ${d.enviados} mail(s) enviado(s) automáticamente`
+        : 'Sin stock nuevo para notificar';
+      showToast(msg);
+      if (d.enviados > 0) { _allClientes=[]; _allProductos=[]; loadClientes(); loadStats(); }
+    } else {
+      showToast('Error: ' + (d.error||'desconocido'), true);
+    }
+  } catch(e) { showToast('Error al verificar', true); }
+  btn.disabled = false;
+  btn.textContent = '🔄 Verificar Stock';
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
