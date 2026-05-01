@@ -38,8 +38,16 @@
     .brand img { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; }
     .brand-name { font-family: "DM Serif Display", serif; font-size: 20px; color: var(--text); }
     .brand-sub { font-size: 11px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-left: 46px; }
-    .tabs-wrap { padding: 16px 20px 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
-    .tabs-wrap::-webkit-scrollbar { display: none; }
+    .tabs-wrap { padding: 12px 20px 0; display: flex; flex-direction: column; gap: 8px; }
+    .period-controls { display:flex; align-items:center; justify-content:space-between; }
+    .year-selector { display:flex; gap:6px; }
+    .year-btn { flex-shrink:0; padding:5px 14px; border-radius:20px; font-size:13px; color:var(--muted); border:1px solid var(--border); background:transparent; cursor:pointer; transition:all .2s; -webkit-tap-highlight-color:transparent; }
+    .year-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:500; }
+    .gran-toggle { display:flex; border:1px solid var(--border); border-radius:20px; overflow:hidden; }
+    .gran-btn { padding:5px 12px; font-size:12px; color:var(--muted); border:none; background:transparent; cursor:pointer; transition:all .2s; -webkit-tap-highlight-color:transparent; line-height:1.2; }
+    .gran-btn.active { background:var(--accent); color:#fff; font-weight:500; }
+    .tabs-row { display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; }
+    .tabs-row::-webkit-scrollbar { display:none; }
     .tab { flex-shrink:0; padding:6px 14px; border-radius:20px; font-size:13px; color:var(--muted); border:1px solid var(--border); background:transparent; cursor:pointer; transition:all .2s; -webkit-tap-highlight-color:transparent; }
     .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:500; }
     .tab.disabled { opacity:.3; cursor:not-allowed; pointer-events:none; }
@@ -241,6 +249,9 @@
   let ultimaLecturaVentasMs = 0;
   let ventasRefreshPromise = null;
   let ventasRestauradasLocalmente = false;
+  let _anioActivo = null;
+  let _quartoActivo = null; // null | {anio, q}
+  let _granularidad = "mes"; // "mes" | "quarter"
 
   function fmt(n) {
     return "$" + Math.abs(Math.round(Number(n) || 0)).toLocaleString("es-AR");
@@ -1197,34 +1208,85 @@
   }
 
   function renderTabs() {
-    document.getElementById("tabs").innerHTML = appData.periodos.map(p => {
-      const futuro = appData.periodosFuturos.has(p);
-      const active = p === periodoActivo;
-      const cls = ["tab", active ? "active" : "", futuro ? "disabled" : ""].filter(Boolean).join(" ");
-      return `<button class="${cls}" ${futuro ? "" : `onclick="mostrar('${p}')"`}>${fmtPeriodo(p)}</button>`;
-    }).join("");
+    if (!appData) return;
+    const MESES_SHORT = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+    const anios = [...new Set(appData.periodos.map(p => parseInt(String(p).split(/[,.]/)[0], 10)))]
+      .sort((a, b) => b - a);
+    if (!_anioActivo || !anios.includes(_anioActivo)) {
+      const [a] = String(periodoActivo || appData.ultimo).split(/[,.]/);
+      _anioActivo = parseInt(a, 10);
+    }
+
+    const yearHtml = anios.map(a =>
+      `<button class="year-btn${a === _anioActivo ? ' active' : ''}" onclick="seleccionarAnio(${a})">${a}</button>`
+    ).join("");
+
+    const granHtml =
+      `<button class="gran-btn${_granularidad === 'mes' ? ' active' : ''}" onclick="setGranularidad('mes')">Mes</button>` +
+      `<button class="gran-btn${_granularidad === 'quarter' ? ' active' : ''}" onclick="setGranularidad('quarter')">Q</button>`;
+
+    let tabsHtml;
+    if (_granularidad === 'mes') {
+      const mesesDelAnio = appData.periodos.filter(p => parseInt(String(p).split(/[,.]/)[0], 10) === _anioActivo);
+      tabsHtml = mesesDelAnio.map(p => {
+        const futuro = appData.periodosFuturos.has(p);
+        const active = !_quartoActivo && p === periodoActivo;
+        const cls = "tab" + (active ? " active" : "") + (futuro ? " disabled" : "");
+        const mes = parseInt(String(p).split(/[,.]/)[1], 10);
+        return `<button class="${cls}"${futuro ? "" : ` onclick="mostrar('${p}')"`}>${MESES_SHORT[mes]}</button>`;
+      }).join("");
+    } else {
+      tabsHtml = [1, 2, 3, 4].map(q => {
+        const meses = [(q-1)*3+1, (q-1)*3+2, q*3];
+        const tieneAlguno = meses.some(m => appData.periodos.some(p => {
+          const [a, pm] = String(p).split(/[,.]/);
+          return parseInt(a,10) === _anioActivo && parseInt(pm,10) === m;
+        }));
+        if (!tieneAlguno) return "";
+        const todosFuturos = meses.every(m => {
+          const key = appData.periodos.find(p => {
+            const [a, pm] = String(p).split(/[,.]/);
+            return parseInt(a,10) === _anioActivo && parseInt(pm,10) === m;
+          });
+          return !key || appData.periodosFuturos.has(key);
+        });
+        const active = _quartoActivo && _quartoActivo.anio === _anioActivo && _quartoActivo.q === q;
+        const cls = "tab" + (active ? " active" : "") + (todosFuturos ? " disabled" : "");
+        return `<button class="${cls}"${todosFuturos ? "" : ` onclick="mostrarQuarter(${_anioActivo},${q})"`}>Q${q}</button>`;
+      }).filter(Boolean).join("");
+    }
+
+    document.getElementById("tabs").innerHTML =
+      `<div class="period-controls">` +
+        `<div class="year-selector">${yearHtml}</div>` +
+        `<div class="gran-toggle">${granHtml}</div>` +
+      `</div>` +
+      `<div class="tabs-row">${tabsHtml}</div>`;
   }
 
   function mostrar(periodo) {
     periodoActivo = periodo;
-    const vals = appData.valores[periodo];
-
-    document.querySelectorAll(".tab").forEach((t, i) => {
-      t.classList.toggle("active", appData.periodos[i] === periodo);
-    });
-
-    const ingresos = vals["Ingresos"] || 0;
-    const totalKey = Object.keys(vals).find(k => k.toLowerCase().includes("total")) || "Totales";
-    const resultado = vals[totalKey] || 0;
-    const estReal = vals["Estimacion Resultado Real"] || 0;
-    const margen = ingresos ? ((resultado / ingresos) * 100).toFixed(1) : 0;
-
-    const [pAnio, pMes] = String(periodo).split(/[,\.]/);
+    _quartoActivo = null;
+    const [pAnio, pMes] = String(periodo).split(/[,.]/);
+    _anioActivo = parseInt(pAnio, 10);
     const mesKey = `${parseInt(pAnio, 10)}-${parseInt(pMes, 10)}`;
     const cantidadMes = ventasData?.cantidadPorMes?.[mesKey] || 0;
     const ahoraAR = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
     const esMesActual = parseInt(pAnio) === ahoraAR.getFullYear() && parseInt(pMes) === ahoraAR.getMonth() + 1;
-    const pendientesMes = esMesActual ? (ventasData?.pendientes_mes?.cantidad || 0) : 0;
+    _renderPnl(appData.valores[periodo], {
+      cantidadTotal: cantidadMes,
+      pendientes: esMesActual ? (ventasData?.pendientes_mes?.cantidad || 0) : 0,
+      detalleOverride: null,
+      labelVentas: "Ventas del mes",
+    });
+    renderTabs();
+  }
+
+  function _renderPnl(vals, {cantidadTotal, pendientes, detalleOverride, labelVentas}) {
+    const ingresos = vals["Ingresos"] || 0;
+    const totalKey = Object.keys(vals).find(k => k.toLowerCase().includes("total")) || "Totales";
+    const resultado = vals[totalKey] || 0;
+    const estReal = vals["Estimacion Resultado Real"] || 0;
 
     const egresos = Object.entries(vals)
       .filter(([k]) => LABELS[k] && LABELS[k].tipo === "egreso")
@@ -1232,7 +1294,7 @@
       .sort((a, b) => b.valor - a.valor);
 
     const renderDetalle = (catKey) => {
-      const items = detalleData?.[periodoActivo]?.[catKey];
+      const items = detalleOverride ? detalleOverride[catKey] : detalleData?.[periodoActivo]?.[catKey];
       if (!items || items.length === 0) return "";
       return items.map(it => `
         <div class="detail-row">
@@ -1242,7 +1304,6 @@
     };
 
     const ingresosDetalle = renderDetalle("Ingresos");
-    const egresosDetalle  = egresos.map(e => renderDetalle(e.key)).join("");
 
     document.getElementById("main-content").innerHTML = `
       <div class="kpi-row">
@@ -1252,9 +1313,9 @@
           <div class="hero-margin">Flujo de Efectivo: <span style="${resultado < 0 ? 'color:#f87171' : ''}">${resultado < 0 ? '-' : ''}${fmt(resultado)}</span></div>
         </div>
         <div class="hero-card">
-          <div class="hero-label">Ventas del mes</div>
-          <div class="hero-value" style="font-size:28px">${cantidadMes > 0 ? cantidadMes.toLocaleString("es-AR") : "—"}</div>
-          <div class="hero-margin">pedidos pagados${pendientesMes > 0 ? `<br><span style="color:#f59e0b">${pendientesMes} pendientes de pago</span>` : ""}</div>
+          <div class="hero-label">${labelVentas}</div>
+          <div class="hero-value" style="font-size:28px">${cantidadTotal > 0 ? cantidadTotal.toLocaleString("es-AR") : "—"}</div>
+          <div class="hero-margin">pedidos pagados${pendientes > 0 ? `<br><span style="color:#f59e0b">${pendientes} pendientes de pago</span>` : ""}</div>
         </div>
       </div>
       <div class="breakdown-card">
@@ -1288,10 +1349,89 @@
         </div>
       </div>`;
 
-    // Ingresos cerrado, Egresos abierto por default (sin max-height fijo para que hijos puedan crecer)
     document.getElementById("main-content").querySelectorAll(".breakdown-detail").forEach(d => {
       d.style.maxHeight = d.classList.contains("open") ? "none" : "0";
     });
+  }
+
+  function mostrarQuarter(anio, q) {
+    _quartoActivo = {anio, q};
+    _anioActivo = anio;
+    const meses = [(q-1)*3+1, (q-1)*3+2, q*3];
+    const ahoraAR = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
+    const cantidadTotal = meses.reduce((sum, m) => sum + (ventasData?.cantidadPorMes?.[`${anio}-${m}`] || 0), 0);
+    const isCurrentQ = meses.some(m => anio === ahoraAR.getFullYear() && m === ahoraAR.getMonth() + 1);
+    _renderPnl(_agrupValoresQuarter(anio, q), {
+      cantidadTotal,
+      pendientes: isCurrentQ ? (ventasData?.pendientes_mes?.cantidad || 0) : 0,
+      detalleOverride: _agrupDetalleQuarter(anio, q),
+      labelVentas: `Ventas Q${q} ${anio}`,
+    });
+    renderTabs();
+  }
+
+  function seleccionarAnio(anio) {
+    _anioActivo = anio;
+    const disponibles = appData.periodos.filter(p => {
+      const [a] = String(p).split(/[,.]/);
+      return parseInt(a,10) === anio && !appData.periodosFuturos.has(p);
+    });
+    if (!disponibles.length) { renderTabs(); return; }
+    if (_granularidad === 'mes') {
+      mostrar(disponibles[disponibles.length - 1]);
+    } else {
+      const [,m] = String(disponibles[disponibles.length - 1]).split(/[,.]/);
+      mostrarQuarter(anio, Math.ceil(parseInt(m,10) / 3));
+    }
+  }
+
+  function setGranularidad(g) {
+    if (_granularidad === g) return;
+    _granularidad = g;
+    if (g === 'mes') {
+      mostrar(periodoActivo);
+    } else {
+      const [a, m] = String(periodoActivo).split(/[,.]/);
+      mostrarQuarter(parseInt(a,10), Math.ceil(parseInt(m,10) / 3));
+    }
+  }
+
+  function _agrupValoresQuarter(anio, q) {
+    const meses = [(q-1)*3+1, (q-1)*3+2, q*3];
+    const agg = {};
+    for (const mes of meses) {
+      const key = appData.periodos.find(p => {
+        const [a, pm] = String(p).split(/[,.]/);
+        return parseInt(a,10) === anio && parseInt(pm,10) === mes;
+      });
+      if (!key || !appData.valores[key]) continue;
+      for (const [nombre, val] of Object.entries(appData.valores[key])) {
+        agg[nombre] = (agg[nombre] || 0) + val;
+      }
+    }
+    return agg;
+  }
+
+  function _agrupDetalleQuarter(anio, q) {
+    if (!detalleData) return null;
+    const meses = [(q-1)*3+1, (q-1)*3+2, q*3];
+    const agg = {};
+    for (const mes of meses) {
+      const key = appData.periodos.find(p => {
+        const [a, pm] = String(p).split(/[,.]/);
+        return parseInt(a,10) === anio && parseInt(pm,10) === mes;
+      });
+      if (!key || !detalleData[key]) continue;
+      for (const [cat, items] of Object.entries(detalleData[key])) {
+        if (!agg[cat]) agg[cat] = {};
+        for (const {desc, val} of items) agg[cat][desc] = (agg[cat][desc] || 0) + val;
+      }
+    }
+    const result = {};
+    for (const [cat, items] of Object.entries(agg)) {
+      result[cat] = Object.entries(items).map(([desc, val]) => ({desc, val})).filter(({val}) => val !== 0);
+    }
+    return result;
   }
 
   function toggleDetalleKpi(card) {
