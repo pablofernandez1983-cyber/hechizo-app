@@ -837,12 +837,14 @@
           const barW = Math.round(h.val / maxVal * 100);
           const col = pct === null ? "var(--muted)" : pct >= 0 ? "#34d399" : "#f87171";
           const pctStr = pct === null ? "" : (pct>=0?"+":"") + pct.toFixed(1) + "%";
+          const cantStr = h.cant != null ? h.cant.toLocaleString("es-AR") + " SKUs" : "";
           return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
             + '<span style="font-size:11px;color:var(--muted);width:46px;flex-shrink:0">' + h.mes.replace("-","/") + '</span>'
             + '<div style="flex:1;background:var(--border);border-radius:3px;height:10px">'
             + '<div style="width:' + barW + '%;background:var(--success);height:10px;border-radius:3px"></div></div>'
             + '<span style="font-size:11px;width:84px;text-align:right;flex-shrink:0">$ ' + Math.round(h.val/1000000*10)/10 + 'M</span>'
             + (pctStr ? '<span style="font-size:11px;color:' + col + ';width:46px;text-align:right;flex-shrink:0">' + pctStr + '</span>' : '<span style="width:46px"></span>')
+            + (cantStr ? '<span style="font-size:11px;color:var(--muted);width:58px;text-align:right;flex-shrink:0">' + cantStr + '</span>' : '<span style="width:58px"></span>')
             + '</div>';
         }).join('');
         historiaPanel = '<div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-top:8px">'
