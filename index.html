@@ -837,7 +837,7 @@
           const barW = Math.round(h.val / maxVal * 100);
           const col = pct === null ? "var(--muted)" : pct >= 0 ? "#34d399" : "#f87171";
           const pctStr = pct === null ? "" : (pct>=0?"+":"") + pct.toFixed(1) + "%";
-          const cantStr = h.cant != null ? h.cant.toLocaleString("es-AR") + " SKUs" : "";
+          const cantStr = h.cant != null ? h.cant.toLocaleString("es-AR") + " uds" : "";
           return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
             + '<span style="font-size:11px;color:var(--muted);width:46px;flex-shrink:0">' + h.mes.replace("-","/") + '</span>'
             + '<div style="flex:1;background:var(--border);border-radius:3px;height:10px">'
