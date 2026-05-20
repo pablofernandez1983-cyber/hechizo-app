@@ -390,8 +390,14 @@ async function sendProduct(productId, productName, btn) {
     const d = await r.json();
     row.style.opacity = '1';
     if (d.ok) {
-      showToast(`✓ ${d.enviados} mail(s) enviado(s)`);
-      _allProductos=[]; _allClientes=[]; loadClientes(); loadStats(); loadProductos();
+      if (d.enviados > 0) {
+        showToast(`✓ ${d.enviados} mail(s) enviado(s)`);
+        _allProductos=[]; _allClientes=[]; loadClientes(); loadStats(); loadProductos();
+      } else if (d.errores && d.errores.length > 0) {
+        showToast(`Error al enviar: ${d.errores[0]}`, true);
+      } else {
+        showToast(d.msg || 'Sin notificaciones pendientes');
+      }
     }
   } catch(e) { row.style.opacity='1'; showToast('Error al enviar', true); }
 }
@@ -425,6 +431,8 @@ async function checkStock() {
       if (d.enviados > 0) {
         showToast(`✓ ${d.enviados} mail(s) enviado(s)`);
         _allClientes=[]; _allProductos=[]; loadClientes(); loadStats();
+      } else if (d.errores && d.errores.length > 0) {
+        showToast(`Error al enviar: ${d.errores[0]}`, true);
       } else {
         const stocks = d.stock_encontrado || {};
         const detail = Object.keys(stocks).length
