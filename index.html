@@ -367,10 +367,10 @@
     const pad = n => String(n).padStart(2, "0");
     const hoyStr = `${ahoraAR.getFullYear()}-${pad(ahoraAR.getMonth()+1)}-${pad(ahoraAR.getDate())}`;
     const tieneHoy = ventasData?.hoy?.fecha === hoyStr;
-    const dosHorasMs = 2 * 60 * 60 * 1000;
-    const datosViejos = (Date.now() - ultimaLecturaVentasMs) >= dosHorasMs;
+    const unaHoraMs = 1 * 60 * 60 * 1000;
+    const datosViejos = (Date.now() - ultimaLecturaVentasMs) >= unaHoraMs;
     if (!tieneHoy) { await cargarVentas({ silent: true }); return; }
-    if (datosViejos) await refrescarVentas();  // tiene datos de hoy pero pasaron 2h → refresca TiendaNube
+    if (datosViejos) await refrescarVentas();  // tiene datos de hoy pero pasó 1h → refresca TiendaNube
   }
 
   async function refrescarVentas() {
