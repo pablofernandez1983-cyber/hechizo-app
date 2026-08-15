@@ -115,6 +115,8 @@
     .est-periodo-label { font-size:11px; color:var(--muted); text-align:center; }
     .est-variacion { font-size:12px; margin-top:2px; }
     .est-spark { margin-top:8px; height:32px; }
+    .est-kpi-clickable { cursor:pointer; -webkit-tap-highlight-color:transparent; transition:border-color .2s; }
+    .est-kpi-clickable.est-kpi-active { border-color:var(--accent); }
     .breakdown-detail { background:rgba(0,0,0,.2); border-bottom:1px solid var(--border); overflow:hidden; max-height:0; transition:max-height .3s ease; }
     .breakdown-detail.open { max-height:600px; }
     .detail-row { display:flex; justify-content:space-between; align-items:center; padding:8px 16px 8px 28px; border-bottom:1px solid rgba(255,255,255,.04); }
@@ -240,19 +242,19 @@
       <div class="est-periodo-label" id="est-periodo-label"></div>
 
       <div class="kpi-row" style="grid-template-columns:1fr 1fr 1fr;">
-        <div class="kpi-card">
+        <div class="kpi-card est-kpi-clickable" id="est-card-cantidad" onclick="estElegirMetrica('cantidad')">
           <div class="kpi-label">Ventas</div>
           <div class="kpi-value" id="est-ventas">—</div>
           <div class="est-variacion" id="est-ventas-var"></div>
           <div class="est-spark" id="est-ventas-spark"></div>
         </div>
-        <div class="kpi-card">
+        <div class="kpi-card est-kpi-clickable" id="est-card-total" onclick="estElegirMetrica('total')">
           <div class="kpi-label">Facturación</div>
           <div class="kpi-value" id="est-facturacion">—</div>
           <div class="est-variacion" id="est-facturacion-var"></div>
           <div class="est-spark" id="est-facturacion-spark"></div>
         </div>
-        <div class="kpi-card">
+        <div class="kpi-card est-kpi-clickable" id="est-card-ticket" onclick="estElegirMetrica('ticket')">
           <div class="kpi-label">Ticket promedio</div>
           <div class="kpi-value" id="est-ticket">—</div>
           <div class="est-variacion" id="est-ticket-var"></div>
@@ -262,7 +264,7 @@
 
       <div class="chart-wrap" id="est-chart-wrap">
         <div class="chart-header">
-          <div class="section-title">Evolución — Facturación</div>
+          <div class="section-title" id="est-chart-title">Evolución — Facturación</div>
         </div>
         <div id="est-chart-svg"></div>
         <div id="est-chart-info" style="min-height:30px;text-align:center;font-size:12px;color:var(--muted);padding:4px 0;"></div>
@@ -692,12 +694,38 @@
     document.getElementById("estadisticas-actualizado").textContent =
       "Datos al " + fmtFechaReal(estData.actualizadoEn);
 
+    estActualizarSeleccionKpi();
     estRenderChart();
   }
 
   function estValorPunto(p, campo) {
     if (campo === "ticket") return p.cantidad > 0 ? p.total / p.cantidad : 0;
     return p[campo];
+  }
+
+  function estMetricaLabel(campo) {
+    return campo === "cantidad" ? "Ventas" : campo === "ticket" ? "Ticket promedio" : "Facturación";
+  }
+
+  function estFmtValor(campo, v) {
+    return campo === "cantidad" ? String(Math.round(v)) : fmt(v);
+  }
+
+  let estMetrica = "total";
+
+  function estElegirMetrica(campo) {
+    estMetrica = campo;
+    estSeleccionIdx = null;
+    estActualizarSeleccionKpi();
+    estRenderChart();
+  }
+
+  function estActualizarSeleccionKpi() {
+    const mapa = { cantidad: "est-card-cantidad", total: "est-card-total", ticket: "est-card-ticket" };
+    Object.entries(mapa).forEach(([campo, id]) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle("est-kpi-active", campo === estMetrica);
+    });
   }
 
   // Catmull-Rom → Bézier, para curvas suaves sin librería externa
@@ -773,8 +801,10 @@
     const puntosC = estData.comparacion;
     if (!puntosA.length) { container.innerHTML = ""; return; }
 
-    const valoresA = puntosA.map(p => p.total);
-    const valoresC = puntosC ? puntosC.map(p => p.total) : [];
+    document.getElementById("est-chart-title").textContent = "Evolución — " + estMetricaLabel(estMetrica);
+
+    const valoresA = puntosA.map(p => estValorPunto(p, estMetrica));
+    const valoresC = puntosC ? puntosC.map(p => estValorPunto(p, estMetrica)) : [];
     const maxV = Math.max(...valoresA, ...valoresC, 1);
 
     const isLight = document.body.classList.contains("light");
@@ -783,7 +813,8 @@
     const grid    = isLight ? "rgba(0,0,0,.07)" : "rgba(255,255,255,.07)";
     const tick    = isLight ? "#6b5b8a" : "#9d8ec0";
 
-    const W = 320, H = 170, PL = 46, PR = 8, PT = 8, PB = 22;
+    // W responsive al ancho real del contenedor — evita el letterboxing del viewBox fijo
+    const W = Math.max(container.clientWidth || 320, 200), H = 170, PL = 46, PR = 8, PT = 8, PB = 22;
     const cW = W - PL - PR, cH = H - PT - PB;
     const n = valoresA.length;
     const step = n > 1 ? cW / (n - 1) : 0;
@@ -795,7 +826,9 @@
     for (let i = 0; i <= 4; i++) {
       const y = PT + cH - (i / 4) * cH;
       const v = maxV * i / 4;
-      const lbl = v >= 1000000 ? "$" + (v / 1000000).toFixed(1) + "M" : v >= 1000 ? "$" + Math.round(v / 1000) + "K" : "$" + Math.round(v);
+      const lbl = estMetrica === "cantidad"
+        ? String(Math.round(v))
+        : v >= 1000000 ? "$" + (v / 1000000).toFixed(1) + "M" : v >= 1000 ? "$" + Math.round(v / 1000) + "K" : "$" + Math.round(v);
       svg += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W - PR}" y2="${y.toFixed(1)}" stroke="${grid}" stroke-width="1"/>`;
       svg += `<text x="${PL - 4}" y="${(y + 3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="${tick}" font-family="DM Sans,sans-serif">${lbl}</text>`;
     }
@@ -844,9 +877,12 @@
     if (!info || !estChartCache) return;
     const pA = estChartCache.puntosA[i];
     const pC = estChartCache.puntosC ? estChartCache.puntosC[i] : null;
-    let html = `<strong style="color:var(--text)">${estFmtPeriodoCorto(pA.periodo, estData.granularidad)}</strong> &nbsp;${fmt(pA.total)} · ${pA.cantidad} pedido${pA.cantidad !== 1 ? "s" : ""}`;
+    const valA = estValorPunto(pA, estMetrica);
+    const sufijoA = estMetrica === "cantidad" ? " pedido" + (pA.cantidad !== 1 ? "s" : "") : ` · ${pA.cantidad} pedido${pA.cantidad !== 1 ? "s" : ""}`;
+    let html = `<strong style="color:var(--text)">${estFmtPeriodoCorto(pA.periodo, estData.granularidad)}</strong> &nbsp;${estFmtValor(estMetrica, valA)}${sufijoA}`;
     if (pC) {
-      html += `<br><span style="opacity:.75">vs ${estFmtPeriodoCorto(pC.periodo, estData.granularidad)}: ${fmt(pC.total)} · ${pC.cantidad} pedido${pC.cantidad !== 1 ? "s" : ""}</span>`;
+      const valC = estValorPunto(pC, estMetrica);
+      html += `<br><span style="opacity:.75">vs ${estFmtPeriodoCorto(pC.periodo, estData.granularidad)}: ${estFmtValor(estMetrica, valC)}</span>`;
     }
     info.innerHTML = html;
   }
