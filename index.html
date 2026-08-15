@@ -857,7 +857,11 @@
     const W = Math.max(container.clientWidth || 320, 200), H = 170, PL = 46, PR = 8, PT = 8, PB = 22;
     const cW = W - PL - PR, cH = H - PT - PB;
     const n = valoresA.length;
-    const step = n > 1 ? cW / (n - 1) : 0;
+    // Si hay proyección, se reserva un slot extra a la derecha para que la línea
+    // punteada "salga" del último dato real y siga la tendencia hacia el estimado.
+    const conProyeccion = esParcial && valorProy !== null;
+    const totalSlots = n + (conProyeccion ? 1 : 0);
+    const step = totalSlots > 1 ? cW / (totalSlots - 1) : 0;
     const aPunto = (v, i) => ({ x: PL + i * step, y: PT + cH - (v / maxV) * cH });
     const serieA = valoresA.map(aPunto);
     const serieC = valoresC.length ? valoresC.map(aPunto) : null;
@@ -888,12 +892,16 @@
       }
     });
 
-    // Punto proyectado del período en curso: marcador hueco + línea punteada hasta la proyección de cierre
-    if (esParcial && valorProy !== null) {
+    // Proyección: línea punteada que sale del último dato real y avanza hacia el estimado de cierre
+    if (conProyeccion) {
       const pAct = serieA[n - 1];
-      const pProy = aPunto(valorProy, n - 1);
-      svg += `<line x1="${pAct.x.toFixed(1)}" y1="${pAct.y.toFixed(1)}" x2="${pProy.x.toFixed(1)}" y2="${pProy.y.toFixed(1)}" stroke="${colorA}" stroke-width="1.4" stroke-dasharray="2,2" opacity="0.6"/>`;
-      svg += `<circle cx="${pProy.x.toFixed(1)}" cy="${pProy.y.toFixed(1)}" r="3" fill="none" stroke="${colorA}" stroke-width="1.4" stroke-dasharray="1.5,1.5" opacity="0.7"/>`;
+      const pProy = aPunto(valorProy, n);
+      const lblProy = estMetrica === "cantidad" ? String(Math.round(valorProy))
+        : valorProy >= 1000000 ? "$" + (valorProy / 1000000).toFixed(1) + "M"
+        : valorProy >= 1000 ? "$" + Math.round(valorProy / 1000) + "K" : "$" + Math.round(valorProy);
+      svg += `<line x1="${pAct.x.toFixed(1)}" y1="${pAct.y.toFixed(1)}" x2="${pProy.x.toFixed(1)}" y2="${pProy.y.toFixed(1)}" stroke="${colorA}" stroke-width="1.6" stroke-dasharray="4,3" opacity="0.85"/>`;
+      svg += `<circle cx="${pProy.x.toFixed(1)}" cy="${pProy.y.toFixed(1)}" r="3" fill="none" stroke="${colorA}" stroke-width="1.6"/>`;
+      svg += `<text x="${pProy.x.toFixed(1)}" y="${(pProy.y - 7).toFixed(1)}" text-anchor="end" font-size="9" fill="${colorA}" font-family="DM Sans,sans-serif">≈ ${lblProy}</text>`;
     }
 
     // Puntos clickeables (una banda invisible por período, mismo patrón que selectBar)
