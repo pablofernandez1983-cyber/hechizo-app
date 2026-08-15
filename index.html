@@ -102,6 +102,8 @@
     .breakdown-chevron { font-size:10px; color:var(--muted); transition:transform .2s; margin-left:4px; }
     .breakdown-row.open .breakdown-chevron { transform:rotate(90deg); }
     .chart-wrap { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; }
+    #ventas-chart-svg { height:150px; }
+    #est-chart-svg { height:170px; }
     .chart-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
     .chart-range-btns { display:flex; gap:6px; }
     .chart-range-btn { padding:4px 10px; border-radius:12px; font-size:11px; border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; font-family:"DM Sans",sans-serif; transition:all .2s; -webkit-tap-highlight-color:transparent; }
@@ -821,7 +823,7 @@
       svg += `<rect x="${x0.toFixed(1)}" y="${PT}" width="${(x1 - x0).toFixed(1)}" height="${cH}" fill="transparent" style="cursor:pointer" onclick="estSeleccionarPunto(${i})"/>`;
     });
 
-    container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;overflow:visible">${svg}</svg>`;
+    container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" style="display:block;overflow:visible">${svg}</svg>`;
     estChartCache = { puntosA, puntosC };
 
     const info = document.getElementById("est-chart-info");
@@ -1982,7 +1984,7 @@
       }
     });
 
-    container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;overflow:visible">${svg}</svg>`;
+    container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" style="display:block;overflow:visible">${svg}</svg>`;
   }
 
   document.addEventListener("visibilitychange", () => {
