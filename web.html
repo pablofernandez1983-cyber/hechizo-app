@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>Hechizo · Web</title>
+  <link rel="icon" href="icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0e0720; --card: #1a0f33; --card2: #231540; --accent: #c084fc; --accent2: #818cf8;
+      --danger: #f87171; --success: #34d399; --warn: #fbbf24;
+      --text: #f1e9ff; --muted: #9d8ec0; --border: rgba(192,132,252,0.15); --hover: rgba(192,132,252,0.10);
+      --zebra: rgba(255,255,255,0.02);
+    }
+    body.light {
+      --bg: #f5f0ff; --card: #ffffff; --card2: #f3edff; --accent: #7c3aed; --accent2: #6366f1;
+      --danger: #dc2626; --success: #059669; --warn: #b45309;
+      --text: #1a0a2e; --muted: #6b5b8a; --border: rgba(124,58,237,0.15); --hover: rgba(124,58,237,0.08);
+      --zebra: rgba(124,58,237,0.025);
+    }
+    body { font-family: "DM Sans", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+    button, input, select { font-family: inherit; font-size: inherit; color: inherit; }
+    .hidden { display: none !important; }
+
+    /* ── Layout ── */
+    header { position: sticky; top: 0; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--border); }
+    .topbar { display: flex; align-items: center; gap: 16px; padding: 14px 24px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand img { width: 32px; height: 32px; border-radius: 9px; }
+    .brand-name { font-family: "DM Serif Display", serif; font-size: 20px; }
+    .brand-sub { font-size: 11px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
+    nav { display: flex; gap: 6px; flex-wrap: wrap; }
+    .nav-btn { padding: 7px 16px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; transition: all .15s; }
+    .nav-btn:hover { color: var(--text); background: var(--hover); }
+    .nav-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500; }
+    .top-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    .ghost-btn { background: transparent; border: 1px solid var(--border); border-radius: 20px; padding: 5px 12px; font-size: 12px; color: var(--muted); cursor: pointer; }
+    .ghost-btn:hover { color: var(--text); background: var(--hover); }
+    .crumbs { display: flex; gap: 6px; align-items: center; padding: 0 24px 12px; font-size: 13px; color: var(--muted); flex-wrap: wrap; min-height: 18px; }
+    .crumbs a { color: var(--accent); cursor: pointer; text-decoration: none; }
+    .crumbs a:hover { text-decoration: underline; }
+    .crumbs .sep { opacity: .5; }
+    main { padding: 20px 24px 60px; max-width: 1700px; margin: 0 auto; }
+
+    /* ── Cards / KPIs ── */
+    .page-title { font-family: "DM Serif Display", serif; font-size: 26px; margin-bottom: 4px; }
+    .page-sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
+    .kpi-l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .kpi-v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .kpi.clickable { cursor: pointer; } .kpi.clickable:hover { border-color: var(--accent); }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+    .card h3 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 20px; }
+    .info-grid div span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 2px; }
+    .notice { border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; border: 1px solid var(--border); background: var(--card2); }
+    .notice.ok { border-color: rgba(52,211,153,.35); }
+    .notice.warn { border-color: rgba(251,191,36,.45); }
+    .notice b { font-weight: 600; }
+    .notes { color: var(--muted); font-size: 12px; margin: -6px 0 14px; }
+    .notes div::before { content: "• "; }
+
+    /* ── Toolbar ── */
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    .toolbar input[type=search], .toolbar input[type=date], .toolbar select {
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px; outline: none; }
+    .toolbar input[type=search] { min-width: 240px; }
+    .toolbar input:focus, .toolbar select:focus { border-color: var(--accent); }
+    .chip { padding: 6px 12px; border-radius: 16px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; }
+    .chip:hover { color: var(--text); background: var(--hover); }
+    .chip.active { border-color: var(--accent); color: var(--accent); background: var(--hover); font-weight: 500; }
+    .spacer { flex: 1; }
+    .count { color: var(--muted); font-size: 12px; }
+    .btn { background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 8px 14px; cursor: pointer; font-weight: 500; }
+    .btn:hover { filter: brightness(1.1); }
+    .btn.sec { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+
+    /* ── Tablas ── */
+    .tbl-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--card); max-height: calc(100vh - 260px); }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+    th, td { padding: 7px 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--border); }
+    th { position: sticky; top: 0; background: var(--card2); z-index: 2; font-weight: 600; font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; }
+    th:hover { color: var(--text); }
+    th.sorted { color: var(--accent); }
+    th.num, td.num { text-align: right; }
+    tbody tr:nth-child(even) td { background: var(--zebra); }
+    tbody tr.link { cursor: pointer; }
+    tbody tr.link:hover td { background: var(--hover); }
+    td.neg { color: var(--danger); }
+    td.wrap { white-space: normal; min-width: 220px; }
+    tfoot td { position: sticky; bottom: 0; background: var(--card2); font-weight: 600; border-top: 1px solid var(--border); }
+    .more { text-align: center; padding: 10px; }
+
+    /* ── Estado de resultados ── */
+    .pnl-wrap { max-height: none; }
+    .pnl th:first-child, .pnl td:first-child { position: sticky; left: 0; z-index: 1; background: var(--card); min-width: 230px; }
+    .pnl th:first-child { z-index: 3; background: var(--card2); }
+    .pnl th { cursor: default; text-align: right; }
+    .pnl th:first-child { text-align: left; }
+    .pnl th.en-curso { color: var(--accent); }
+    .pnl td { text-align: right; }
+    .pnl td:first-child { text-align: left; }
+    .pnl tbody tr:nth-child(even) td { background: transparent; }
+    .pnl tr.cat td { font-weight: 600; background: var(--card2) !important; }
+    .pnl tr.cat td:first-child { cursor: pointer; }
+    .pnl tr.cat td:first-child::before { content: "▸ "; color: var(--muted); display: inline-block; width: 14px; }
+    .pnl tr.cat.open td:first-child::before { content: "▾ "; }
+    .pnl tr.rub td:first-child { padding-left: 30px; color: var(--muted); }
+    .pnl tr.tot td { font-weight: 700; font-size: 15px; border-top: 2px solid var(--accent); background: var(--card2) !important; }
+    .pnl tr.sub td { color: var(--muted); font-size: 12px; }
+    .pnl td.cell { cursor: pointer; border-radius: 0; }
+    .pnl td.cell:hover { background: var(--hover) !important; outline: 1px solid var(--accent); outline-offset: -1px; }
+    .pnl td.zero { color: var(--muted); opacity: .45; }
+    .pnl td.col-tot { border-left: 1px solid var(--border); font-weight: 600; }
+    .pos { color: var(--success); }
+    .neg { color: var(--danger); }
+
+    /* ── Barras (resumen de mes) ── */
+    .bar-row { display: grid; grid-template-columns: 220px 1fr 130px; gap: 10px; align-items: center; padding: 5px 6px; border-radius: 8px; cursor: pointer; }
+    .bar-row:hover { background: var(--hover); }
+    .bar-row .lbl { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar-row .lbl.cat { font-weight: 600; }
+    .bar-row .bar { height: 10px; border-radius: 5px; background: var(--accent2); min-width: 2px; }
+    .bar-row .bar.neg { background: var(--danger); opacity: .8; }
+    .bar-row .val { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
+    .minibars { display: flex; align-items: flex-end; gap: 3px; height: 120px; padding-top: 10px; }
+    .minibars div { flex: 1; background: var(--accent2); border-radius: 3px 3px 0 0; min-height: 1px; position: relative; cursor: default; }
+    .minibars div:hover { background: var(--accent); }
+    .minibars-lbl { display: flex; gap: 3px; font-size: 10px; color: var(--muted); }
+    .minibars-lbl span { flex: 1; text-align: center; overflow: hidden; }
+
+    /* ── Login / estados ── */
+    .center { min-height: 70vh; display: flex; align-items: center; justify-content: center; }
+    .login { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 32px; width: 340px; text-align: center; }
+    .login img { width: 56px; height: 56px; border-radius: 14px; margin-bottom: 10px; }
+    .login h1 { font-family: "DM Serif Display", serif; font-size: 24px; margin-bottom: 4px; }
+    .login p { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+    .login input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; outline: none; }
+    .login input:focus { border-color: var(--accent); }
+    .login .btn { width: 100%; padding: 10px; }
+    .login .err { color: var(--danger); font-size: 13px; margin-top: 10px; min-height: 18px; }
+    .loading { color: var(--muted); padding: 40px; text-align: center; }
+    .loading::before { content: ""; display: inline-block; width: 14px; height: 14px; border: 2px solid var(--accent); border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; margin-right: 8px; vertical-align: -2px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-box { color: var(--danger); padding: 20px; }
+    a.inline { color: var(--accent); cursor: pointer; text-decoration: none; } a.inline:hover { text-decoration: underline; }
+
+    @media (max-width: 700px) {
+      .topbar, .crumbs, main { padding-left: 16px; padding-right: 16px; }
+      .grid2 { grid-template-columns: 1fr; }
+      .bar-row { grid-template-columns: 130px 1fr 100px; }
+      .toolbar input[type=search] { min-width: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header id="header" class="hidden">
+    <div class="topbar">
+      <div class="brand">
+        <img src="icon-192.png" alt="" />
+        <div><div class="brand-name">Hechizo</div><div class="brand-sub">Reporte web</div></div>
+      </div>
+      <nav id="nav">
+        <button class="nav-btn" data-sec="resultados">Resultados</button>
+        <button class="nav-btn" data-sec="ventas">Ventas</button>
+        <button class="nav-btn" data-sec="productos">Productos</button>
+        <button class="nav-btn" data-sec="clientes">Clientes</button>
+      </nav>
+      <div class="top-right">
+        <span class="count" id="actualizado"></span>
+        <button class="ghost-btn" id="btn-theme">☀︎ Claro</button>
+        <button class="ghost-btn" id="btn-salir">Salir</button>
+      </div>
+    </div>
+    <div class="crumbs" id="crumbs"></div>
+  </header>
+  <main id="main"></main>
+
+<script>
+(() => {
+  const API = "https://hechizo-reporte-nuevo-production.up.railway.app";
+  const KEY_STORAGE = "hechizo_web_key";
+  const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  const MESES_L = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  const CAT_LABEL = {
+    "Ingresos": "Ingresos", "Costo de Mercaderia": "Costo de mercadería", "Gastos por Ventas": "Gastos por ventas",
+    "Gastos de Comercializacion": "Comercialización (envíos)", "Publicidad": "Publicidad",
+    "Impuestos": "Impuestos", "Gastos de Administracion": "Administración",
+  };
+
+  const $main = document.getElementById("main");
+  const $crumbs = document.getElementById("crumbs");
+  let clave = lsGet(KEY_STORAGE) || "";
+  let pnlData = null;
+
+  // ═══════════════════ util ═══════════════════
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const nf0 = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 });
+  const nf2 = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
+  const money = v => (v == null || v === "" || isNaN(v)) ? "" : (v < 0 ? "−$ " : "$ ") + nf0.format(Math.abs(Math.round(v)));
+  const moneyK = v => { const a = Math.abs(v); const s = v < 0 ? "−" : "";
+    return a >= 1e6 ? `${s}$ ${nf2.format(a / 1e6)} M` : `${s}$ ${nf0.format(a / 1e3)} k`; };
+  const pct = v => (v == null || !isFinite(v)) ? "" : nf2.format(v * 100) + " %";
+  const fecha = s => { if (!s) return ""; const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(s); };
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const hoyAR = () => new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
+  const mesLabel = km => { const [a, m] = km.split("-").map(Number); return `${MESES_L[m - 1]} ${a}`; };
+  const rangoLabel = (d, h) => d === h ? mesLabel(d) : (d.slice(5) === "01" && h.slice(5) === "12" && d.slice(0, 4) === h.slice(0, 4) ? `año ${d.slice(0, 4)}` : `${mesLabel(d)} – ${mesLabel(h)}`);
+  const finDeMes = km => { const [a, m] = km.split("-").map(Number); return iso(new Date(a, m, 0)); };
+
+  async function api(path) {
+    const res = await fetch(API + path, { headers: { "X-Web-Key": clave }, cache: "no-store" });
+    if (res.status === 401) { salir("La clave no es válida."); throw new Error("Clave incorrecta"); }
+    const j = await res.json().catch(() => ({ ok: false, error: "Respuesta inválida (" + res.status + ")" }));
+    if (!j.ok) throw new Error(j.error || "Error " + res.status);
+    return j;
+  }
+
+  // ═══════════════════ navegación (pila de vistas) ═══════════════════
+  let pila = [];
+  function abrir(vista, reemplazarTodo = false) {
+    if (reemplazarTodo) pila = [];
+    pila.push(vista);
+    history.pushState({ n: pila.length }, "");
+    render();
+  }
+  function irA(i) { pila = pila.slice(0, i + 1); history.pushState({ n: pila.length }, ""); render(); }
+  window.addEventListener("popstate", () => { if (pila.length > 1) { pila.pop(); render(); } });
+
+  function render() {
+    const v = pila[pila.length - 1];
+    $crumbs.innerHTML = pila.map((p, i) => i === pila.length - 1
+      ? `<span>${esc(p.titulo)}</span>` : `<a data-i="${i}">${esc(p.titulo)}</a><span class="sep">›</span>`).join("");
+    document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.sec === pila[0].sec));
+    $main.innerHTML = "";
+    window.scrollTo(0, 0);
+    v.render($main);
+  }
+  $crumbs.addEventListener("click", e => { const a = e.target.closest("a[data-i]"); if (a) irA(+a.dataset.i); });
+  document.getElementById("nav").addEventListener("click", e => {
+    const b = e.target.closest(".nav-btn"); if (!b) return;
+    abrir(SECCIONES[b.dataset.sec](), true);
+  });
+
+  function cargando(el, txt = "Cargando…") { el.innerHTML = `<div class="loading">${esc(txt)}</div>`; }
+  function errorEn(el, err) { el.innerHTML = `<div class="error-box">No se pudo cargar: ${esc(err.message || err)}</div>`; }
+
+  // ═══════════════════ tabla genérica ═══════════════════
+  // opts: columnas [{key,label,tipo,filtro}], filas, onRow(fila), buscar (bool), exportar (nombre), totales (bool)
+  function tabla(el, opts) {
+    const st = { orden: opts.ordenInicial || null, asc: opts.ascInicial ?? false, q: "", filtros: {}, limite: 500 };
+    const cols = opts.columnas;
+    const numTipos = new Set(["money", "int", "num", "pct"]);
+    el.innerHTML = `
+      <div class="toolbar">
+        <input type="search" placeholder="Buscar…" data-r="q" />
+        ${cols.filter(c => c.filtro).map(c => {
+          const vals = [...new Set(opts.filas.map(f => f[c.key] ?? "").map(String))].sort();
+          return `<select data-f="${c.key}"><option value="">${esc(c.label)}: todos</option>${vals.map(v => `<option value="${esc(v)}">${esc(v || "(vacío)")}</option>`).join("")}</select>`;
+        }).join("")}
+        <span class="spacer"></span>
+        <span class="count" data-r="count"></span>
+        ${opts.exportar ? `<button class="btn sec" data-r="csv">⤓ CSV</button>` : ""}
+      </div>
+      <div class="tbl-wrap"><table><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+      <div class="more hidden"><button class="btn sec">Mostrar más</button></div>`;
+    const $q = el.querySelector('[data-r="q"]'), $thead = el.querySelector("thead"), $tbody = el.querySelector("tbody"),
+          $tfoot = el.querySelector("tfoot"), $count = el.querySelector('[data-r="count"]'), $more = el.querySelector(".more");
+
+    function filtradas() {
+      const q = st.q.trim().toLowerCase();
+      let f = opts.filas.filter(r => Object.entries(st.filtros).every(([k, v]) => v === "" || String(r[k] ?? "") === v));
+      if (q) f = f.filter(r => cols.some(c => String(r[c.key] ?? "").toLowerCase().includes(q)) || (opts.extraBusqueda || []).some(k => String(r[k] ?? "").toLowerCase().includes(q)));
+      if (st.orden) {
+        const c = cols.find(c => c.key === st.orden); const num = numTipos.has(c?.tipo);
+        f = [...f].sort((a, b) => {
+          let x = a[st.orden], y = b[st.orden];
+          if (num) { x = +x || 0; y = +y || 0; return st.asc ? x - y : y - x; }
+          x = String(x ?? ""); y = String(y ?? ""); return st.asc ? x.localeCompare(y, "es") : y.localeCompare(x, "es");
+        });
+      }
+      return f;
+    }
+    function celda(c, v) {
+      if (c.tipo === "money") return `<td class="num${v < 0 ? " neg" : ""}">${money(v)}</td>`;
+      if (c.tipo === "int") return `<td class="num">${v == null ? "" : nf0.format(v)}</td>`;
+      if (c.tipo === "num") return `<td class="num">${v == null ? "" : nf2.format(v)}</td>`;
+      if (c.tipo === "pct") return `<td class="num">${pct(v)}</td>`;
+      if (c.tipo === "fecha") return `<td>${esc(fecha(v))}</td>`;
+      if (c.tipo === "bool") return `<td>${v ? "Sí" : ""}</td>`;
+      return `<td${c.wrap ? ' class="wrap"' : ""}>${esc(v)}</td>`;
+    }
+    function pintar() {
+      const f = filtradas();
+      $thead.innerHTML = "<tr>" + cols.map(c => `<th data-k="${c.key}" class="${numTipos.has(c.tipo) ? "num" : ""}${st.orden === c.key ? " sorted" : ""}">${esc(c.label)}${st.orden === c.key ? (st.asc ? " ▲" : " ▼") : ""}</th>`).join("") + "</tr>";
+      const vis = f.slice(0, st.limite);
+      $tbody.innerHTML = vis.map((r, i) => `<tr data-i="${i}"${opts.onRow && (!opts.rowLink || opts.rowLink(r)) ? ' class="link"' : ""}>${cols.map(c => celda(c, r[c.key])).join("")}</tr>`).join("")
+        || `<tr><td colspan="${cols.length}" style="color:var(--muted);padding:20px">Sin resultados</td></tr>`;
+      $tbody._filas = vis;
+      if (opts.totales !== false && f.length) {
+        $tfoot.innerHTML = "<tr>" + cols.map((c, i) => {
+          if (c.tipo === "money" && c.sumar !== false) { const s = f.reduce((a, r) => a + (+r[c.key] || 0), 0); return `<td class="num${s < 0 ? " neg" : ""}">${money(s)}</td>`; }
+          if (c.tipo === "int" && c.sumar !== false) return `<td class="num">${nf0.format(f.reduce((a, r) => a + (+r[c.key] || 0), 0))}</td>`;
+          return `<td>${i === 0 ? "Total" : ""}</td>`;
+        }).join("") + "</tr>";
+      } else $tfoot.innerHTML = "";
+      $count.textContent = f.length === opts.filas.length ? `${nf0.format(f.length)} ${f.length === 1 ? "fila" : "filas"}` : `${nf0.format(f.length)} de ${nf0.format(opts.filas.length)} filas`;
+      $more.classList.toggle("hidden", f.length <= st.limite);
+      if (opts.onFiltrar) opts.onFiltrar(f);
+    }
+    $q.addEventListener("input", () => { st.q = $q.value; st.limite = 500; pintar(); });
+    el.querySelectorAll("select[data-f]").forEach(s => s.addEventListener("change", () => { st.filtros[s.dataset.f] = s.value; pintar(); }));
+    $thead.addEventListener("click", e => { const th = e.target.closest("th"); if (!th) return;
+      const k = th.dataset.k; if (st.orden === k) st.asc = !st.asc; else { st.orden = k; st.asc = !numTipos.has(cols.find(c => c.key === k).tipo); } pintar(); });
+    $tbody.addEventListener("click", e => { const tr = e.target.closest("tr[data-i]"); if (!tr || !opts.onRow) return;
+      const r = $tbody._filas[+tr.dataset.i]; if (!opts.rowLink || opts.rowLink(r)) opts.onRow(r); });
+    $more.querySelector("button").addEventListener("click", () => { st.limite += 1000; pintar(); });
+    const $csv = el.querySelector('[data-r="csv"]');
+    if ($csv) $csv.addEventListener("click", () => exportarCSV(opts.exportar, cols, filtradas()));
+    pintar();
+  }
+
+  function exportarCSV(nombre, cols, filas) {
+    const fmt = (c, v) => {
+      if (v == null) return "";
+      if (["money", "num", "int", "pct"].includes(c.tipo)) return String(Math.round((+v || 0) * 100) / 100).replace(".", ",");
+      if (c.tipo === "fecha") return fecha(v);
+      const s = String(v); return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const txt = "﻿" + [cols.map(c => c.label).join(";"), ...filas.map(r => cols.map(c => fmt(c, r[c.key])).join(";"))].join("\r\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([txt], { type: "text/csv;charset=utf-8" }));
+    a.download = nombre.replace(/[^\w\- áéíóúñ]/gi, "_") + ".csv";
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  // Selector de rango de fechas reutilizable
+  function selectorRango(el, rango, onCambio) {
+    const hoy = hoyAR();
+    const presets = [
+      ["Este mes", () => [iso(new Date(hoy.getFullYear(), hoy.getMonth(), 1)), iso(hoy)]],
+      ["Mes pasado", () => [iso(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)), iso(new Date(hoy.getFullYear(), hoy.getMonth(), 0))]],
+      ["Últimos 30 días", () => [iso(new Date(hoy - 29 * 864e5)), iso(hoy)]],
+      ["Este año", () => [`${hoy.getFullYear()}-01-01`, iso(hoy)]],
+      ["Año pasado", () => [`${hoy.getFullYear() - 1}-01-01`, `${hoy.getFullYear() - 1}-12-31`]],
+      ["Todo", () => ["2022-01-01", iso(hoy)]],
+    ];
+    el.innerHTML = `<div class="toolbar">
+      ${presets.map(([l], i) => `<button class="chip" data-p="${i}">${l}</button>`).join("")}
+      <span style="width:8px"></span>
+      <input type="date" data-r="d" value="${rango.desde}" /> <span class="count">a</span> <input type="date" data-r="h" value="${rango.hasta}" />
+    </div>`;
+    const $d = el.querySelector('[data-r="d"]'), $h = el.querySelector('[data-r="h"]');
+    const marcar = () => el.querySelectorAll(".chip").forEach((c, i) => { const [a, b] = presets[i][1](); c.classList.toggle("active", a === rango.desde && b === rango.hasta); });
+    el.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => { [rango.desde, rango.hasta] = presets[+c.dataset.p][1](); $d.value = rango.desde; $h.value = rango.hasta; marcar(); onCambio(); }));
+    [$d, $h].forEach(i => i.addEventListener("change", () => { if (!$d.value || !$h.value) return; rango.desde = $d.value; rango.hasta = $h.value; marcar(); onCambio(); }));
+    marcar();
+  }
+
+  // ═══════════════════ RESULTADOS (P&L) ═══════════════════
+  async function asegurarPnl(forzar = false) {
+    if (pnlData && !forzar) return pnlData;
+    const j = await api("/web/pnl");
+    const cats = [];
+    j.filas.forEach(f => { if (!cats.includes(f.cat)) cats.push(f.cat); });
+    j.cats = cats;
+    j.val = (rub, km) => +(j.valores[rub]?.[km] || 0);
+    j.anios = [...new Set(j.meses.map(m => m.slice(0, 4)))].sort();
+    pnlData = j;
+    if (j.actualizado) {
+      const d = new Date(j.actualizado);
+      document.getElementById("actualizado").textContent = "P&L actualizado " + d.toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    }
+    return j;
+  }
+
+  // Agregados de un conjunto de meses
+  function agregados(P, meses) {
+    const sumR = rub => meses.reduce((a, km) => a + P.val(rub, km), 0);
+    const porRubro = {}; P.filas.forEach(f => porRubro[f.rubro] = sumR(f.rubro));
+    const porCat = {}; P.cats.forEach(c => porCat[c] = P.filas.filter(f => f.cat === c).reduce((a, f) => a + porRubro[f.rubro], 0));
+    const resultado = Object.values(porCat).reduce((a, b) => a + b, 0);
+    const ingresos = porCat["Ingresos"] || 0;
+    const estReal = resultado - (porRubro.compras || 0) - ((porRubro.ventas_min || 0) + (porRubro.ventas_may || 0)) / 2.8;
+    return { porRubro, porCat, resultado, ingresos, margen: ingresos ? resultado / ingresos : null, estReal };
+  }
+
+  const pnlUI = { modo: null, abiertas: new Set(["Ingresos"]) };
+
+  function vistaResultados() {
+    return { sec: "resultados", titulo: "Estado de resultados", render: async el => {
+      cargando(el);
+      let P; try { P = await asegurarPnl(); } catch (e) { return errorEn(el, e); }
+      const hoy = hoyAR(); const kmHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+      if (!pnlUI.modo) pnlUI.modo = P.anios.includes(String(hoy.getFullYear())) ? String(hoy.getFullYear()) : P.anios[P.anios.length - 1];
+
+      // Columnas: meses de un año, o años
+      let columnas;
+      if (pnlUI.modo === "anual") columnas = P.anios.map(a => ({ label: a, meses: P.meses.filter(m => m.startsWith(a)), d: `${a}-01`, h: `${a}-12`, curso: a === String(hoy.getFullYear()) }));
+      else columnas = MESES.map((l, i) => { const km = `${pnlUI.modo}-${String(i + 1).padStart(2, "0")}`; return { label: l, meses: P.meses.includes(km) ? [km] : [], d: km, h: km, curso: km === kmHoy }; }).filter(c => c.meses.length);
+      const todos = columnas.flatMap(c => c.meses);
+      const colTot = { label: pnlUI.modo === "anual" ? "Total" : `Total ${pnlUI.modo}`, meses: todos, d: columnas[0]?.d, h: columnas[columnas.length - 1]?.h, tot: true };
+      const cols = [...columnas, colTot];
+      const ag = cols.map(c => agregados(P, c.meses));
+
+      const agTot = ag[ag.length - 1];
+      el.innerHTML = `
+        <div class="page-title">Estado de resultados</div>
+        <div class="page-sub">Tocá cualquier número para ver de dónde sale. Tocá una categoría para abrir o cerrar sus rubros.</div>
+        <div class="kpis">
+          <div class="kpi"><div class="kpi-l">Ingresos ${esc(colTot.label.replace("Total ", ""))}</div><div class="kpi-v">${money(agTot.ingresos)}</div></div>
+          <div class="kpi"><div class="kpi-l">Resultado neto</div><div class="kpi-v ${agTot.resultado < 0 ? "neg" : "pos"}">${money(agTot.resultado)}</div></div>
+          <div class="kpi"><div class="kpi-l">Margen</div><div class="kpi-v">${pct(agTot.margen)}</div></div>
+          <div class="kpi"><div class="kpi-l">Est. resultado real</div><div class="kpi-v">${money(agTot.estReal)}</div></div>
+        </div>
+        <div class="toolbar">
+          ${P.anios.map(a => `<button class="chip${pnlUI.modo === a ? " active" : ""}" data-m="${a}">${a}</button>`).join("")}
+          <button class="chip${pnlUI.modo === "anual" ? " active" : ""}" data-m="anual">Todos los años</button>
+          <span class="spacer"></span>
+          <button class="chip" data-r="expand">Abrir todo</button><button class="chip" data-r="collapse">Cerrar todo</button>
+          <button class="chip" data-r="csv">⤓ CSV</button>
+        </div>
+        <div class="tbl-wrap pnl-wrap"><table class="pnl"><thead></thead><tbody></tbody></table></div>`;
+
+      const $thead = el.querySelector("thead"), $tbody = el.querySelector("tbody");
+      $thead.innerHTML = `<tr><th>Concepto</th>${cols.map(c => `<th class="${c.curso ? "en-curso" : ""}${c.tot ? " col-tot" : ""}" title="${c.curso ? "Período en curso" : ""}">${esc(c.label)}${c.curso ? " •" : ""}</th>`).join("")}</tr>`;
+      const td = (v, ci, attrs = "") => {
+        const c = cols[ci];
+        return `<td class="cell${!v ? " zero" : v < 0 ? " neg" : ""}${c.tot ? " col-tot" : ""}" data-ci="${ci}" ${attrs}>${v ? money(v) : "–"}</td>`;
+      };
+      let html = "";
+      P.cats.forEach(cat => {
+        const open = pnlUI.abiertas.has(cat);
+        html += `<tr class="cat${open ? " open" : ""}" data-cat="${esc(cat)}"><td>${esc(CAT_LABEL[cat] || cat)}</td>${ag.map((a, ci) => td(a.porCat[cat], ci, `data-tcat="${esc(cat)}"`)).join("")}</tr>`;
+        if (open) P.filas.filter(f => f.cat === cat).forEach(f => {
+          if (!ag.some(a => a.porRubro[f.rubro])) return;
+          html += `<tr class="rub"><td>${esc(f.desc)}</td>${ag.map((a, ci) => td(a.porRubro[f.rubro], ci, `data-rub="${f.rubro}"`)).join("")}</tr>`;
+        });
+      });
+      html += `<tr class="tot"><td>Resultado neto</td>${ag.map((a, ci) => td(a.resultado, ci, 'data-res="1"')).join("")}</tr>`;
+      html += `<tr class="sub"><td>Margen sobre ingresos</td>${ag.map(a => `<td>${pct(a.margen)}</td>`).join("")}</tr>`;
+      html += `<tr class="sub"><td title="Resultado sumando compras y restando un costo estimado de ventas/2,8">Est. resultado real</td>${ag.map(a => `<td class="${a.estReal < 0 ? "neg" : ""}">${money(a.estReal)}</td>`).join("")}</tr>`;
+      $tbody.innerHTML = html;
+
+      $tbody.addEventListener("click", e => {
+        const cell = e.target.closest("td.cell");
+        if (cell) {
+          const c = cols[+cell.dataset.ci];
+          if (cell.dataset.rub) return abrir(vistaRubro(cell.dataset.rub, c.d, c.h));
+          if (cell.dataset.tcat) return abrir(vistaResumen(c.d, c.h, cell.dataset.tcat));
+          if (cell.dataset.res) return abrir(vistaResumen(c.d, c.h));
+          return;
+        }
+        const tr = e.target.closest("tr.cat");
+        if (tr && e.target.closest("td:first-child")) {
+          const cat = tr.dataset.cat; pnlUI.abiertas.has(cat) ? pnlUI.abiertas.delete(cat) : pnlUI.abiertas.add(cat); render();
+        }
+      });
+      el.querySelectorAll("[data-m]").forEach(b => b.addEventListener("click", () => { pnlUI.modo = b.dataset.m; render(); }));
+      el.querySelector('[data-r="expand"]').addEventListener("click", () => { P.cats.forEach(c => pnlUI.abiertas.add(c)); render(); });
+      el.querySelector('[data-r="collapse"]').addEventListener("click", () => { pnlUI.abiertas.clear(); render(); });
+      el.querySelector('[data-r="csv"]').addEventListener("click", () => {
+        const filas = [];
+        P.cats.forEach(cat => {
+          filas.push({ c: CAT_LABEL[cat] || cat, ...Object.fromEntries(ag.map((a, i) => [i, a.porCat[cat]])) });
+          P.filas.filter(f => f.cat === cat).forEach(f => filas.push({ c: "   " + f.desc, ...Object.fromEntries(ag.map((a, i) => [i, a.porRubro[f.rubro]])) }));
+        });
+        filas.push({ c: "Resultado neto", ...Object.fromEntries(ag.map((a, i) => [i, a.resultado])) });
+        exportarCSV(`Hechizo P&L ${pnlUI.modo}`, [{ key: "c", label: "Concepto" }, ...cols.map((c, i) => ({ key: i, label: c.label, tipo: "money" }))], filas);
+      });
+    }};
+  }
+
+  // Resumen de un período: categorías y rubros con barras, todo clickeable
+  function vistaResumen(d, h, soloCat = null) {
+    const titulo = (soloCat ? (CAT_LABEL[soloCat] || soloCat) + " · " : "Resumen · ") + rangoLabel(d, h);
+    return { titulo, render: async el => {
+      cargando(el);
+      let P; try { P = await asegurarPnl(); } catch (e) { return errorEn(el, e); }
+      const meses = P.meses.filter(m => m >= d && m <= h);
+      const a = agregados(P, meses);
+      const max = Math.max(1, ...Object.values(a.porRubro).map(Math.abs));
+      const cats = soloCat ? [soloCat] : P.cats;
+      el.innerHTML = `
+        <div class="page-title">${esc(titulo)}</div>
+        <div class="page-sub">Tocá un rubro para ver cada movimiento.</div>
+        <div class="kpis">
+          <div class="kpi"><div class="kpi-l">Ingresos</div><div class="kpi-v">${money(a.ingresos)}</div></div>
+          <div class="kpi"><div class="kpi-l">Egresos</div><div class="kpi-v neg">${money(a.resultado - a.ingresos)}</div></div>
+          <div class="kpi"><div class="kpi-l">Resultado neto</div><div class="kpi-v ${a.resultado < 0 ? "neg" : "pos"}">${money(a.resultado)}</div></div>
+          <div class="kpi"><div class="kpi-l">Margen</div><div class="kpi-v">${pct(a.margen)}</div></div>
+          <div class="kpi clickable" data-r="ventas"><div class="kpi-l">Órdenes del período ›</div><div class="kpi-v" data-r="nord">…</div></div>
+        </div>
+        <div class="card">${cats.map(cat => `
+          <div class="bar-row" data-cat="${esc(cat)}"><div class="lbl cat">${esc(CAT_LABEL[cat] || cat)}</div><div></div><div class="val ${a.porCat[cat] < 0 ? "neg" : ""}" style="font-weight:600">${money(a.porCat[cat])}</div></div>
+          ${P.filas.filter(f => f.cat === cat && a.porRubro[f.rubro]).map(f => `
+            <div class="bar-row" data-rub="${f.rubro}"><div class="lbl" style="padding-left:14px">${esc(f.desc)}</div>
+              <div><div class="bar${a.porRubro[f.rubro] < 0 ? " neg" : ""}" style="width:${Math.abs(a.porRubro[f.rubro]) / max * 100}%"></div></div>
+              <div class="val">${money(a.porRubro[f.rubro])}</div></div>`).join("")}`).join("")}
+        </div>`;
+      el.querySelectorAll(".bar-row[data-rub]").forEach(r => r.addEventListener("click", () => abrir(vistaRubro(r.dataset.rub, d, h))));
+      el.querySelectorAll(".bar-row[data-cat]").forEach(r => r.addEventListener("click", () => { if (!soloCat) abrir(vistaResumen(d, h, r.dataset.cat)); }));
+      const rango = { desde: `${d}-01`, hasta: finDeMes(h) };
+      el.querySelector('[data-r="ventas"]').addEventListener("click", () => abrir(vistaVentas(rango, `Ventas · ${rangoLabel(d, h)}`)));
+      api(`/web/ventas?desde=${rango.desde}&hasta=${rango.hasta}`).then(j => {
+        const n = j.filas.length, t = j.filas.reduce((s, r) => s + r.total, 0);
+        const $n = el.querySelector('[data-r="nord"]'); if ($n) $n.innerHTML = `${nf0.format(n)} <span class="count">· ticket ${money(n ? t / n : 0)}</span>`;
+      }).catch(() => {});
+    }};
+  }
+
+  // Detalle de un rubro en un período
+  function vistaRubro(rubro, d, h) {
+    const P = pnlData;
+    const f = P?.filas.find(x => x.rubro === rubro);
+    const titulo = `${f ? f.desc : rubro} · ${rangoLabel(d, h)}`;
+    return { titulo, render: async el => {
+      cargando(el, "Buscando cada movimiento…");
+      let j; try { j = await api(`/web/rubro?rubro=${rubro}&desde=${d}&hasta=${h}`); } catch (e) { return errorEn(el, e); }
+      const dif = Math.round(j.total_detalle - j.total_pnl);
+      el.innerHTML = `
+        <div class="page-title">${esc(titulo)}</div>
+        <div class="page-sub">${esc(CAT_LABEL[f?.cat] || f?.cat || "")}</div>
+        <div class="kpis">
+          <div class="kpi"><div class="kpi-l">En el P&L</div><div class="kpi-v">${money(j.total_pnl)}</div></div>
+          <div class="kpi"><div class="kpi-l">Suma del detalle</div><div class="kpi-v">${money(j.total_detalle)}</div></div>
+          <div class="kpi"><div class="kpi-l">Movimientos</div><div class="kpi-v">${nf0.format(j.filas.length)}</div></div>
+        </div>
+        ${Math.abs(dif) < 1
+          ? `<div class="notice ok">✓ El detalle suma exactamente lo mismo que el P&L.</div>`
+          : `<div class="notice warn"><b>Diferencia con el P&L: ${money(dif)}.</b> ${difExplicacion(rubro, dif, h)}</div>`}
+        ${j.notas?.length ? `<div class="notes">${j.notas.map(n => `<div>${esc(n)}</div>`).join("")}</div>` : ""}
+        <div data-r="tabla"></div>`;
+      const cols = j.columnas.map(c => ({ ...c, sumar: c.key === "valor" || !["mult", "cpc", "precio_unitario"].includes(c.key) }));
+      tabla(el.querySelector('[data-r="tabla"]'), {
+        columnas: cols, filas: j.filas, exportar: titulo, ordenInicial: "fecha", ascInicial: true,
+        extraBusqueda: ["email", "tracking"],
+        onRow: j.link === "orden" ? r => abrir(vistaOrden(r.orden_id)) : null,
+        rowLink: r => !!r.orden_id,
+      });
+    }};
+  }
+
+  function difExplicacion(rubro, dif, h) {
+    const hoy = hoyAR(); const kmHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+    const curso = h >= kmHoy ? " Como incluye el mes en curso, también puede ser que haya movimientos nuevos desde la última corrida del reporte." : "";
+    if (/^(ventas|dto|envio)_/.test(rubro))
+      return "Suele ser por órdenes que se cancelaron o devolvieron después de cobradas: el reporte ya no las cuenta, pero siguen en la base de ventas." + curso;
+    if (rubro === "com_pagonube" || rubro === "ret_iibb")
+      return "El mes en curso se completa con el último export de PagoNube, que puede tener ventas que todavía no llegaron a la base." + curso;
+    return "El detalle y el total salen de fuentes que se actualizan en momentos distintos." + curso;
+  }
+
+  // ═══════════════════ VENTAS ═══════════════════
+  const C_ORDENES = [
+    { key: "fecha", label: "Fecha", tipo: "fecha" },
+    { key: "orden_id", label: "Orden", tipo: "texto" },
+    { key: "cliente", label: "Cliente", tipo: "texto" },
+    { key: "tipo", label: "Tipo", tipo: "texto", filtro: true },
+    { key: "medio_pago", label: "Medio de pago", tipo: "texto", filtro: true },
+    { key: "carrier", label: "Envío", tipo: "texto", filtro: true },
+    { key: "estado_envio", label: "Estado envío", tipo: "texto", filtro: true },
+    { key: "unidades", label: "Unid.", tipo: "int" },
+    { key: "subtotal", label: "Subtotal", tipo: "money" },
+    { key: "descuento", label: "Descuento", tipo: "money" },
+    { key: "envio_cobrado", label: "Envío cobrado", tipo: "money" },
+    { key: "total", label: "Total", tipo: "money" },
+  ];
+
+  const ventasRango = (() => { const h = hoyAR(); return { desde: iso(new Date(h.getFullYear(), h.getMonth(), 1)), hasta: iso(h) }; })();
+
+  function kpisVentas(el, filas) {
+    const n = filas.length, t = filas.reduce((s, r) => s + (+r.total || 0), 0), u = filas.reduce((s, r) => s + (+r.unidades || 0), 0);
+    const sub = filas.reduce((s, r) => s + (+r.subtotal || 0), 0), dto = filas.reduce((s, r) => s + (+r.descuento || 0), 0);
+    el.innerHTML = `
+      <div class="kpi"><div class="kpi-l">Órdenes</div><div class="kpi-v">${nf0.format(n)}</div></div>
+      <div class="kpi"><div class="kpi-l">Facturado (total)</div><div class="kpi-v">${money(t)}</div></div>
+      <div class="kpi"><div class="kpi-l">Ticket promedio</div><div class="kpi-v">${money(n ? t / n : 0)}</div></div>
+      <div class="kpi"><div class="kpi-l">Unidades</div><div class="kpi-v">${nf0.format(u)}</div></div>
+      <div class="kpi"><div class="kpi-l">Descuentos</div><div class="kpi-v">${sub ? pct(dto / sub) : "–"}</div></div>`;
+  }
+
+  function graficoDiario(el, filas, desde, hasta) {
+    const dias = (new Date(hasta) - new Date(desde)) / 864e5 + 1;
+    const porMes = dias > 62;
+    const key = r => porMes ? String(r.fecha).slice(0, 7) : String(r.fecha).slice(0, 10);
+    const m = new Map();
+    if (!porMes) for (let t = new Date(desde + "T12:00"); iso(t) <= hasta; t = new Date(t.getTime() + 864e5)) m.set(iso(t), 0);
+    filas.forEach(r => m.set(key(r), (m.get(key(r)) || 0) + (+r.total || 0)));
+    const pts = [...m.entries()].sort();
+    if (pts.length < 2 || pts.length > 400) { el.innerHTML = ""; return; }
+    const max = Math.max(...pts.map(p => p[1]), 1);
+    const paso = Math.ceil(pts.length / 16);
+    el.innerHTML = `<div class="card"><h3>Facturación por ${porMes ? "mes" : "día"}</h3>
+      <div class="minibars">${pts.map(([k, v]) => `<div style="height:${v / max * 100}%" title="${porMes ? mesLabel(k) : fecha(k)}: ${money(v)}"></div>`).join("")}</div>
+      <div class="minibars-lbl">${pts.map(([k], i) => `<span>${i % paso === 0 ? (porMes ? MESES[+k.slice(5) - 1] + " " + k.slice(2, 4) : k.slice(8)) : ""}</span>`).join("")}</div></div>`;
+  }
+
+  function vistaVentas(rango = ventasRango, titulo = "Ventas") {
+    return { sec: "ventas", titulo, render: el => {
+      el.innerHTML = `<div class="page-title">${esc(titulo)}</div><div class="page-sub">Órdenes pagadas de Tiendanube. Tocá una para ver sus productos.</div>
+        <div data-r="rango"></div><div class="kpis" data-r="kpis"></div><div data-r="graf"></div><div data-r="tabla"></div>`;
+      const cargar = async () => {
+        const $t = el.querySelector('[data-r="tabla"]'); cargando($t);
+        try {
+          const j = await api(`/web/ventas?desde=${rango.desde}&hasta=${rango.hasta}`);
+          graficoDiario(el.querySelector('[data-r="graf"]'), j.filas, rango.desde, rango.hasta);
+          tabla($t, { columnas: C_ORDENES, filas: j.filas, exportar: `Ventas ${rango.desde} a ${rango.hasta}`, extraBusqueda: ["email"],
+            onRow: r => abrir(vistaOrden(r.orden_id)), onFiltrar: f => kpisVentas(el.querySelector('[data-r="kpis"]'), f) });
+        } catch (e) { errorEn($t, e); }
+      };
+      selectorRango(el.querySelector('[data-r="rango"]'), rango, cargar);
+      cargar();
+    }};
+  }
+
+  function vistaOrden(id) {
+    return { titulo: `Orden ${id}`, render: async el => {
+      cargando(el);
+      let j; try { j = await api(`/web/orden/${encodeURIComponent(id)}`); } catch (e) { return errorEn(el, e); }
+      const o = j.orden, ch = j.cliente_hist;
+      el.innerHTML = `
+        <div class="page-title">Orden ${esc(o.orden_id)}</div>
+        <div class="page-sub">${esc(fecha(o.fecha))} · ${esc(o.tipo)} · ${esc(o.estado_pago)}</div>
+        <div class="grid2">
+          <div class="card"><h3>Cliente</h3><div class="info-grid">
+            <div><span>Nombre</span>${esc(o.cliente)}</div>
+            <div><span>Email</span>${esc(o.email)}</div>
+            <div><span>Historial</span>${ch && o.email ? `<a class="inline" data-r="cli">${nf0.format(ch.n)} compra${ch.n == 1 ? "" : "s"} · ${money(ch.t)} ›</a>` : "–"}</div>
+          </div></div>
+          <div class="card"><h3>Pago y envío</h3><div class="info-grid">
+            <div><span>Medio de pago</span>${esc(o.medio_pago)}</div>
+            <div><span>Envío</span>${esc(o.carrier)}</div>
+            <div><span>Estado envío</span>${esc(o.estado_envio)}</div>
+            <div><span>Tracking</span>${esc(o.tracking || "–")}</div>
+          </div></div>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><div class="kpi-l">Subtotal</div><div class="kpi-v">${money(o.subtotal)}</div></div>
+          <div class="kpi"><div class="kpi-l">Descuento</div><div class="kpi-v${o.descuento ? " neg" : ""}">${money(-o.descuento)}</div></div>
+          <div class="kpi"><div class="kpi-l">Envío cobrado</div><div class="kpi-v">${money(o.envio_cobrado)}</div></div>
+          <div class="kpi"><div class="kpi-l">Total</div><div class="kpi-v">${money(o.total)}</div></div>
+        </div>
+        <div data-r="items"></div>`;
+      const cli = el.querySelector('[data-r="cli"]');
+      if (cli) cli.addEventListener("click", () => abrir(vistaCliente({ email: o.email, cliente: o.cliente })));
+      tabla(el.querySelector('[data-r="items"]'), {
+        columnas: [
+          { key: "producto_nombre", label: "Producto", tipo: "texto", wrap: true },
+          { key: "variante_nombre", label: "Variante", tipo: "texto" },
+          { key: "sku", label: "SKU", tipo: "texto" },
+          { key: "cantidad", label: "Cant.", tipo: "int" },
+          { key: "precio_unitario", label: "Precio unit.", tipo: "money", sumar: false },
+          { key: "importe", label: "Importe", tipo: "money" },
+        ],
+        filas: j.items, onRow: r => abrir(vistaProducto(r.producto_id, r.producto_nombre)),
+      });
+    }};
+  }
+
+  // ═══════════════════ PRODUCTOS ═══════════════════
+  const prodRango = (() => { const h = hoyAR(); return { desde: iso(new Date(h.getFullYear(), h.getMonth(), 1)), hasta: iso(h) }; })();
+
+  function vistaProductos() {
+    return { sec: "productos", titulo: "Productos", render: el => {
+      el.innerHTML = `<div class="page-title">Productos más vendidos</div><div class="page-sub">Tocá un producto para ver variantes, evolución y órdenes.</div>
+        <div data-r="rango"></div><div data-r="tabla"></div>`;
+      const cargar = async () => {
+        const $t = el.querySelector('[data-r="tabla"]'); cargando($t);
+        try {
+          const j = await api(`/web/productos?desde=${prodRango.desde}&hasta=${prodRango.hasta}`);
+          tabla($t, { columnas: [
+              { key: "producto", label: "Producto", tipo: "texto", wrap: true },
+              { key: "unidades", label: "Unidades", tipo: "int" },
+              { key: "facturado", label: "Facturado", tipo: "money" },
+              { key: "ordenes", label: "Órdenes", tipo: "int" },
+              { key: "precio_prom", label: "Precio prom.", tipo: "money", sumar: false },
+              { key: "ultima_venta", label: "Última venta", tipo: "fecha" },
+            ], filas: j.filas, ordenInicial: "facturado", exportar: `Productos ${prodRango.desde} a ${prodRango.hasta}`,
+            onRow: r => abrir(vistaProducto(r.producto_id, r.producto)) });
+        } catch (e) { errorEn($t, e); }
+      };
+      selectorRango(el.querySelector('[data-r="rango"]'), prodRango, cargar);
+      cargar();
+    }};
+  }
+
+  function vistaProducto(pid, nombre) {
+    return { titulo: nombre || `Producto ${pid}`, render: el => {
+      const rango = { ...prodRango };
+      el.innerHTML = `<div class="page-title">${esc(nombre || "Producto")}</div><div class="page-sub">ID ${esc(pid)}</div>
+        <div data-r="mensual"></div><div data-r="rango"></div>
+        <div class="grid2"><div><div class="card"><h3>Variantes en el período</h3><div data-r="var"></div></div></div>
+          <div><div class="card"><h3>Órdenes en el período</h3><div data-r="ord"></div></div></div></div>`;
+      const cargar = async () => {
+        const $v = el.querySelector('[data-r="var"]'), $o = el.querySelector('[data-r="ord"]'); cargando($v); cargando($o);
+        try {
+          const [p, v] = await Promise.all([
+            api(`/web/producto/${encodeURIComponent(pid)}?desde=${rango.desde}&hasta=${rango.hasta}`),
+            api(`/web/ventas?producto_id=${encodeURIComponent(pid)}&desde=${rango.desde}&hasta=${rango.hasta}`),
+          ]);
+          const m = p.mensual, max = Math.max(1, ...m.map(x => x.unidades)), paso = Math.ceil(m.length / 16);
+          el.querySelector('[data-r="mensual"]').innerHTML = m.length > 1 ? `<div class="card"><h3>Unidades vendidas por mes (histórico)</h3>
+            <div class="minibars">${m.map(x => `<div style="height:${x.unidades / max * 100}%" title="${mesLabel(x.mes)}: ${nf0.format(x.unidades)} u · ${money(x.facturado)}"></div>`).join("")}</div>
+            <div class="minibars-lbl">${m.map((x, i) => `<span>${i % paso === 0 ? MESES[+x.mes.slice(5) - 1] + " " + x.mes.slice(2, 4) : ""}</span>`).join("")}</div></div>` : "";
+          tabla($v, { columnas: [
+            { key: "variante", label: "Variante", tipo: "texto" }, { key: "sku", label: "SKU", tipo: "texto" },
+            { key: "unidades", label: "Unidades", tipo: "int" }, { key: "facturado", label: "Facturado", tipo: "money" }], filas: p.variantes, ordenInicial: "unidades" });
+          tabla($o, { columnas: [C_ORDENES[0], C_ORDENES[1], C_ORDENES[2], C_ORDENES[11]], filas: v.filas, onRow: r => abrir(vistaOrden(r.orden_id)) });
+        } catch (e) { errorEn($v, e); $o.innerHTML = ""; }
+      };
+      selectorRango(el.querySelector('[data-r="rango"]'), rango, cargar);
+      cargar();
+    }};
+  }
+
+  // ═══════════════════ CLIENTES ═══════════════════
+  const cliRango = (() => { const h = hoyAR(); return { desde: `${h.getFullYear()}-01-01`, hasta: iso(h) }; })();
+
+  function vistaClientes() {
+    return { sec: "clientes", titulo: "Clientes", render: el => {
+      el.innerHTML = `<div class="page-title">Clientes</div><div class="page-sub">Agrupados por email. Tocá uno para ver todas sus compras.</div>
+        <div data-r="rango"></div><div data-r="tabla"></div>`;
+      const cargar = async () => {
+        const $t = el.querySelector('[data-r="tabla"]'); cargando($t);
+        try {
+          const j = await api(`/web/clientes?desde=${cliRango.desde}&hasta=${cliRango.hasta}`);
+          tabla($t, { columnas: [
+              { key: "cliente", label: "Cliente", tipo: "texto" },
+              { key: "email", label: "Email", tipo: "texto" },
+              { key: "ordenes", label: "Órdenes", tipo: "int" },
+              { key: "total", label: "Total comprado", tipo: "money" },
+              { key: "ticket_prom", label: "Ticket prom.", tipo: "money", sumar: false },
+              { key: "primera", label: "Primera", tipo: "fecha" },
+              { key: "ultima", label: "Última", tipo: "fecha" },
+              { key: "mayorista", label: "Mayorista", tipo: "bool" },
+            ], filas: j.filas, ordenInicial: "total", exportar: `Clientes ${cliRango.desde} a ${cliRango.hasta}`,
+            onRow: r => abrir(vistaCliente(r)), rowLink: r => !!r.email });
+        } catch (e) { errorEn($t, e); }
+      };
+      selectorRango(el.querySelector('[data-r="rango"]'), cliRango, cargar);
+      cargar();
+    }};
+  }
+
+  function vistaCliente(c) {
+    return { titulo: c.cliente || c.email, render: async el => {
+      cargando(el);
+      let j; try { j = await api(`/web/ventas?email=${encodeURIComponent(c.email)}`); } catch (e) { return errorEn(el, e); }
+      el.innerHTML = `<div class="page-title">${esc(c.cliente || c.email)}</div><div class="page-sub">${esc(c.email)} · historial completo</div>
+        <div class="kpis" data-r="kpis"></div><div data-r="tabla"></div>`;
+      tabla(el.querySelector('[data-r="tabla"]'), { columnas: C_ORDENES.filter(x => x.key !== "cliente"), filas: j.filas,
+        exportar: `Compras ${c.cliente || c.email}`, onRow: r => abrir(vistaOrden(r.orden_id)),
+        onFiltrar: f => kpisVentas(el.querySelector('[data-r="kpis"]'), f) });
+    }};
+  }
+
+  const SECCIONES = { resultados: vistaResultados, ventas: () => vistaVentas(), productos: vistaProductos, clientes: vistaClientes };
+
+  // ═══════════════════ login / arranque ═══════════════════
+  function pantallaLogin(msg = "") {
+    document.getElementById("header").classList.add("hidden");
+    $main.innerHTML = `<div class="center"><form class="login" autocomplete="on">
+      <img src="icon-192.png" alt="" /><h1>Hechizo</h1><p>Reporte web · acceso privado</p>
+      <input type="text" name="username" value="hechizo" autocomplete="username" class="hidden" />
+      <input type="password" name="password" placeholder="Clave" autocomplete="current-password" autofocus />
+      <button class="btn" type="submit">Entrar</button><div class="err">${esc(msg)}</div></form></div>`;
+    const form = $main.querySelector("form");
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const $err = form.querySelector(".err"); $err.textContent = "";
+      clave = form.password.value.trim();
+      try {
+        const res = await fetch(API + "/web/check", { headers: { "X-Web-Key": clave }, cache: "no-store" });
+        if (res.status === 401) { $err.textContent = "Clave incorrecta."; return; }
+        if (!res.ok) { $err.textContent = "El servidor respondió " + res.status + "."; return; }
+        lsSet(KEY_STORAGE, clave); arrancar();
+      } catch (err) { $err.textContent = "No se pudo conectar con el servidor."; }
+    });
+  }
+
+  function salir(msg = "") { clave = ""; lsSet(KEY_STORAGE, null); pnlData = null; pila = []; pantallaLogin(msg); }
+
+  function arrancar() {
+    document.getElementById("header").classList.remove("hidden");
+    history.replaceState({ n: 1 }, "");
+    pila = [vistaResultados()];
+    render();
+  }
+
+  function aplicarTema(t) {
+    document.body.classList.toggle("light", t === "light");
+    document.getElementById("btn-theme").textContent = t === "light" ? "☾ Oscuro" : "☀︎ Claro";
+  }
+  aplicarTema(lsGet("hechizo_web_tema") || "dark");
+  document.getElementById("btn-theme").addEventListener("click", () => {
+    const t = document.body.classList.contains("light") ? "dark" : "light"; lsSet("hechizo_web_tema", t); aplicarTema(t);
+  });
+  document.getElementById("btn-salir").addEventListener("click", () => salir());
+
+  clave ? arrancar() : pantallaLogin();
+})();
+</script>
+</body>
+</html>
