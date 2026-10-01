@@ -15,12 +15,16 @@
       --danger: #f87171; --success: #34d399; --warn: #fbbf24;
       --text: #f1e9ff; --muted: #9d8ec0; --border: rgba(192,132,252,0.15); --hover: rgba(192,132,252,0.10);
       --zebra: rgba(255,255,255,0.02);
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+      --grid: rgba(192,132,252,0.10); --axis: rgba(192,132,252,0.30);
     }
     body.light {
       --bg: #f5f0ff; --card: #ffffff; --card2: #f3edff; --accent: #7c3aed; --accent2: #6366f1;
       --danger: #dc2626; --success: #059669; --warn: #b45309;
       --text: #1a0a2e; --muted: #6b5b8a; --border: rgba(124,58,237,0.15); --hover: rgba(124,58,237,0.08);
       --zebra: rgba(124,58,237,0.025);
+      --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+      --grid: rgba(124,58,237,0.08); --axis: rgba(124,58,237,0.28);
     }
     body { font-family: "DM Sans", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
     button, input, select { font-family: inherit; font-size: inherit; color: inherit; }
@@ -83,9 +87,10 @@
 
     /* ── Tablas ── */
     .tbl-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--card); max-height: calc(100vh - 260px); }
-    table { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
-    th, td { padding: 7px 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--border); }
-    th { position: sticky; top: 0; background: var(--card2); z-index: 2; font-weight: 600; font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; font-size: 13px; }
+    th, td { padding: 6px 8px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--border); }
+    th { position: sticky; top: 0; background: var(--card2); z-index: 2; font-weight: 600; font-size: 11.5px; color: var(--muted); cursor: pointer; user-select: none; }
+    td.txt { max-width: 210px; overflow: hidden; text-overflow: ellipsis; }
     th:hover { color: var(--text); }
     th.sorted { color: var(--accent); }
     th.num, td.num { text-align: right; }
@@ -93,13 +98,13 @@
     tbody tr.link { cursor: pointer; }
     tbody tr.link:hover td { background: var(--hover); }
     td.neg { color: var(--danger); }
-    td.wrap { white-space: normal; min-width: 220px; }
+    td.wrap { white-space: normal; min-width: 200px; max-width: 360px; }
     tfoot td { position: sticky; bottom: 0; background: var(--card2); font-weight: 600; border-top: 1px solid var(--border); }
     .more { text-align: center; padding: 10px; }
 
     /* ── Estado de resultados ── */
     .pnl-wrap { max-height: none; }
-    .pnl th:first-child, .pnl td:first-child { position: sticky; left: 0; z-index: 1; background: var(--card); min-width: 230px; }
+    .pnl th:first-child, .pnl td:first-child { position: sticky; left: 0; z-index: 1; background: var(--card); min-width: 190px; }
     .pnl th:first-child { z-index: 3; background: var(--card2); }
     .pnl th { cursor: default; text-align: right; }
     .pnl th:first-child { text-align: left; }
@@ -111,8 +116,9 @@
     .pnl tr.cat td:first-child { cursor: pointer; }
     .pnl tr.cat td:first-child::before { content: "▸ "; color: var(--muted); display: inline-block; width: 14px; }
     .pnl tr.cat.open td:first-child::before { content: "▾ "; }
-    .pnl tr.rub td:first-child { padding-left: 30px; color: var(--muted); }
-    .pnl tr.tot td { font-weight: 700; font-size: 15px; border-top: 2px solid var(--accent); background: var(--card2) !important; }
+    .pnl tr.rub td:first-child { padding-left: 26px; color: var(--muted); }
+    .pnl td, .pnl th { padding: 6px 7px; }
+    .pnl tr.tot td { font-weight: 700; font-size: 14px; border-top: 2px solid var(--accent); background: var(--card2) !important; }
     .pnl tr.sub td { color: var(--muted); font-size: 12px; }
     .pnl td.cell { cursor: pointer; border-radius: 0; }
     .pnl td.cell:hover { background: var(--hover) !important; outline: 1px solid var(--accent); outline-offset: -1px; }
@@ -134,6 +140,33 @@
     .minibars div:hover { background: var(--accent); }
     .minibars-lbl { display: flex; gap: 3px; font-size: 10px; color: var(--muted); }
     .minibars-lbl span { flex: 1; text-align: center; overflow: hidden; }
+
+    /* ── Gráficos (SVG) ── */
+    .chart-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+    .chart-head h3 { margin: 0; }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+    .chart svg { display: block; width: 100%; overflow: visible; }
+    .chart .gl { stroke: var(--grid); stroke-width: 1; }
+    .chart .ax { stroke: var(--axis); stroke-width: 1; }
+    .chart text { fill: var(--muted); font-size: 11px; font-family: "DM Sans", sans-serif; font-variant-numeric: tabular-nums; }
+    .chart text.dl { fill: var(--text); font-size: 11.5px; font-weight: 500; }
+    .chart .band { fill: transparent; cursor: pointer; }
+    .chart .band.on { fill: var(--hover); }
+    .chart .seg { cursor: pointer; }
+    .chart .seg:hover { filter: brightness(1.15); }
+    .chart-note { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .tt { position: fixed; z-index: 50; pointer-events: none; background: var(--card2); border: 1px solid var(--border); border-radius: 10px;
+          padding: 8px 10px; font-size: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.35); min-width: 190px; font-variant-numeric: tabular-nums; }
+    .tt b { display: block; margin-bottom: 4px; font-weight: 600; }
+    .tt div { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+    .tt div span:first-child { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+    .tt i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+    .tt .tot { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 4px; font-weight: 600; }
+    .seg-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+    .seg-toggle button { background: transparent; border: none; padding: 5px 12px; color: var(--muted); cursor: pointer; font-size: 12px; }
+    .seg-toggle button.on { background: var(--accent); color: #fff; }
 
     /* ── Login / estados ── */
     .center { min-height: 70vh; display: flex; align-items: center; justify-content: center; }
@@ -170,6 +203,7 @@
         <button class="nav-btn" data-sec="resultados">Resultados</button>
         <button class="nav-btn" data-sec="ventas">Ventas</button>
         <button class="nav-btn" data-sec="productos">Productos</button>
+        <button class="nav-btn" data-sec="cobranzas">Cobranzas</button>
         <button class="nav-btn" data-sec="clientes">Clientes</button>
       </nav>
       <div class="top-right">
@@ -181,6 +215,7 @@
     <div class="crumbs" id="crumbs"></div>
   </header>
   <main id="main"></main>
+  <div class="tt hidden" id="tt"></div>
 
 <script>
 (() => {
@@ -206,8 +241,9 @@
   const nf0 = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 });
   const nf2 = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
   const money = v => (v == null || v === "" || isNaN(v)) ? "" : (v < 0 ? "−$ " : "$ ") + nf0.format(Math.abs(Math.round(v)));
-  const moneyK = v => { const a = Math.abs(v); const s = v < 0 ? "−" : "";
+  const moneyK = v => { if (!v) return "0"; const a = Math.abs(v); const s = v < 0 ? "−" : "";
     return a >= 1e6 ? `${s}$ ${nf2.format(a / 1e6)} M` : `${s}$ ${nf0.format(a / 1e3)} k`; };
+  const num = v => (v < 0 ? "−" : "") + nf0.format(Math.abs(Math.round(v)));
   const pct = v => (v == null || !isFinite(v)) ? "" : nf2.format(v * 100) + " %";
   const fecha = s => { if (!s) return ""; const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(s); };
   const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -241,6 +277,7 @@
       ? `<span>${esc(p.titulo)}</span>` : `<a data-i="${i}">${esc(p.titulo)}</a><span class="sep">›</span>`).join("");
     document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.sec === pila[0].sec));
     $main.innerHTML = "";
+    alRedimensionar = null; ocultarTip();
     window.scrollTo(0, 0);
     v.render($main);
   }
@@ -256,7 +293,7 @@
   // ═══════════════════ tabla genérica ═══════════════════
   // opts: columnas [{key,label,tipo,filtro}], filas, onRow(fila), buscar (bool), exportar (nombre), totales (bool)
   function tabla(el, opts) {
-    const st = { orden: opts.ordenInicial || null, asc: opts.ascInicial ?? false, q: "", filtros: {}, limite: 500 };
+    const st = { orden: opts.ordenInicial || null, asc: opts.ascInicial ?? false, q: "", filtros: { ...(opts.filtrosIniciales || {}) }, limite: 500 };
     const cols = opts.columnas;
     const numTipos = new Set(["money", "int", "num", "pct"]);
     el.innerHTML = `
@@ -264,7 +301,7 @@
         <input type="search" placeholder="Buscar…" data-r="q" />
         ${cols.filter(c => c.filtro).map(c => {
           const vals = [...new Set(opts.filas.map(f => f[c.key] ?? "").map(String))].sort();
-          return `<select data-f="${c.key}"><option value="">${esc(c.label)}: todos</option>${vals.map(v => `<option value="${esc(v)}">${esc(v || "(vacío)")}</option>`).join("")}</select>`;
+          return `<select data-f="${c.key}"><option value="">${esc(c.label)}: todos</option>${vals.map(v => `<option value="${esc(v)}"${st.filtros[c.key] === v ? " selected" : ""}>${esc(v || "(vacío)")}</option>`).join("")}</select>`;
         }).join("")}
         <span class="spacer"></span>
         <span class="count" data-r="count"></span>
@@ -296,7 +333,7 @@
       if (c.tipo === "pct") return `<td class="num">${pct(v)}</td>`;
       if (c.tipo === "fecha") return `<td>${esc(fecha(v))}</td>`;
       if (c.tipo === "bool") return `<td>${v ? "Sí" : ""}</td>`;
-      return `<td${c.wrap ? ' class="wrap"' : ""}>${esc(v)}</td>`;
+      return c.wrap ? `<td class="wrap">${esc(v)}</td>` : `<td class="txt" title="${esc(v)}">${esc(v)}</td>`;
     }
     function pintar() {
       const f = filtradas();
@@ -431,10 +468,10 @@
         <div class="tbl-wrap pnl-wrap"><table class="pnl"><thead></thead><tbody></tbody></table></div>`;
 
       const $thead = el.querySelector("thead"), $tbody = el.querySelector("tbody");
-      $thead.innerHTML = `<tr><th>Concepto</th>${cols.map(c => `<th class="${c.curso ? "en-curso" : ""}${c.tot ? " col-tot" : ""}" title="${c.curso ? "Período en curso" : ""}">${esc(c.label)}${c.curso ? " •" : ""}</th>`).join("")}</tr>`;
+      $thead.innerHTML = `<tr><th>Concepto (en $)</th>${cols.map(c => `<th class="${c.curso ? "en-curso" : ""}${c.tot ? " col-tot" : ""}" title="${c.curso ? "Período en curso" : ""}">${esc(c.label)}${c.curso ? " •" : ""}</th>`).join("")}</tr>`;
       const td = (v, ci, attrs = "") => {
         const c = cols[ci];
-        return `<td class="cell${!v ? " zero" : v < 0 ? " neg" : ""}${c.tot ? " col-tot" : ""}" data-ci="${ci}" ${attrs}>${v ? money(v) : "–"}</td>`;
+        return `<td class="cell${!v ? " zero" : v < 0 ? " neg" : ""}${c.tot ? " col-tot" : ""}" data-ci="${ci}" ${attrs}>${v ? num(v) : "–"}</td>`;
       };
       let html = "";
       P.cats.forEach(cat => {
@@ -447,7 +484,7 @@
       });
       html += `<tr class="tot"><td>Resultado neto</td>${ag.map((a, ci) => td(a.resultado, ci, 'data-res="1"')).join("")}</tr>`;
       html += `<tr class="sub"><td>Margen sobre ingresos</td>${ag.map(a => `<td>${pct(a.margen)}</td>`).join("")}</tr>`;
-      html += `<tr class="sub"><td title="Resultado sumando compras y restando un costo estimado de ventas/2,8">Est. resultado real</td>${ag.map(a => `<td class="${a.estReal < 0 ? "neg" : ""}">${money(a.estReal)}</td>`).join("")}</tr>`;
+      html += `<tr class="sub"><td title="Resultado sumando compras y restando un costo estimado de ventas/2,8">Est. resultado real</td>${ag.map(a => `<td class="${a.estReal < 0 ? "neg" : ""}">${num(a.estReal)}</td>`).join("")}</tr>`;
       $tbody.innerHTML = html;
 
       $tbody.addEventListener("click", e => {
@@ -542,7 +579,7 @@
       const cols = j.columnas.map(c => ({ ...c, sumar: c.key === "valor" || !["mult", "cpc", "precio_unitario"].includes(c.key) }));
       tabla(el.querySelector('[data-r="tabla"]'), {
         columnas: cols, filas: j.filas, exportar: titulo, ordenInicial: "fecha", ascInicial: true,
-        extraBusqueda: ["email", "tracking"],
+        extraBusqueda: ["email", "tracking", "medio_pago"],
         onRow: j.link === "orden" ? r => abrir(vistaOrden(r.orden_id)) : null,
         rowLink: r => !!r.orden_id,
       });
@@ -565,7 +602,7 @@
     { key: "orden_id", label: "Orden", tipo: "texto" },
     { key: "cliente", label: "Cliente", tipo: "texto" },
     { key: "tipo", label: "Tipo", tipo: "texto", filtro: true },
-    { key: "medio_pago", label: "Medio de pago", tipo: "texto", filtro: true },
+    { key: "forma", label: "Forma de pago", tipo: "texto", filtro: true },
     { key: "carrier", label: "Envío", tipo: "texto", filtro: true },
     { key: "estado_envio", label: "Estado envío", tipo: "texto", filtro: true },
     { key: "unidades", label: "Unid.", tipo: "int" },
@@ -604,7 +641,7 @@
       <div class="minibars-lbl">${pts.map(([k], i) => `<span>${i % paso === 0 ? (porMes ? MESES[+k.slice(5) - 1] + " " + k.slice(2, 4) : k.slice(8)) : ""}</span>`).join("")}</div></div>`;
   }
 
-  function vistaVentas(rango = ventasRango, titulo = "Ventas") {
+  function vistaVentas(rango = ventasRango, titulo = "Ventas", filtros = null) {
     return { sec: "ventas", titulo, render: el => {
       el.innerHTML = `<div class="page-title">${esc(titulo)}</div><div class="page-sub">Órdenes pagadas de Tiendanube. Tocá una para ver sus productos.</div>
         <div data-r="rango"></div><div class="kpis" data-r="kpis"></div><div data-r="graf"></div><div data-r="tabla"></div>`;
@@ -613,7 +650,7 @@
         try {
           const j = await api(`/web/ventas?desde=${rango.desde}&hasta=${rango.hasta}`);
           graficoDiario(el.querySelector('[data-r="graf"]'), j.filas, rango.desde, rango.hasta);
-          tabla($t, { columnas: C_ORDENES, filas: j.filas, exportar: `Ventas ${rango.desde} a ${rango.hasta}`, extraBusqueda: ["email"],
+          tabla($t, { columnas: C_ORDENES, filas: j.filas, exportar: `Ventas ${rango.desde} a ${rango.hasta}`, extraBusqueda: ["email", "medio_pago"], filtrosIniciales: filtros,
             onRow: r => abrir(vistaOrden(r.orden_id)), onFiltrar: f => kpisVentas(el.querySelector('[data-r="kpis"]'), f) });
         } catch (e) { errorEn($t, e); }
       };
@@ -637,7 +674,7 @@
             <div><span>Historial</span>${ch && o.email ? `<a class="inline" data-r="cli">${nf0.format(ch.n)} compra${ch.n == 1 ? "" : "s"} · ${money(ch.t)} ›</a>` : "–"}</div>
           </div></div>
           <div class="card"><h3>Pago y envío</h3><div class="info-grid">
-            <div><span>Medio de pago</span>${esc(o.medio_pago)}</div>
+            <div><span>Forma de pago</span>${esc(o.forma)} <span style="display:inline;text-transform:none;letter-spacing:0">· ${esc(o.medio_pago)}</span></div>
             <div><span>Envío</span>${esc(o.carrier)}</div>
             <div><span>Estado envío</span>${esc(o.estado_envio)}</div>
             <div><span>Tracking</span>${esc(o.tracking || "–")}</div>
@@ -763,7 +800,236 @@
     }};
   }
 
-  const SECCIONES = { resultados: vistaResultados, ventas: () => vistaVentas(), productos: vistaProductos, clientes: vistaClientes };
+  // ═══════════════════ gráficos (SVG a mano) ═══════════════════
+  let alRedimensionar = null;
+  let _rzT = null;
+  window.addEventListener("resize", () => { clearTimeout(_rzT); _rzT = setTimeout(() => alRedimensionar && alRedimensionar(), 150); });
+
+  const $tt = document.getElementById("tt");
+  function mostrarTip(html, ev) {
+    $tt.innerHTML = html; $tt.classList.remove("hidden");
+    const r = $tt.getBoundingClientRect();
+    let x = ev.clientX + 14, y = ev.clientY + 14;
+    if (x + r.width > window.innerWidth - 8) x = ev.clientX - r.width - 14;
+    if (y + r.height > window.innerHeight - 8) y = ev.clientY - r.height - 14;
+    $tt.style.left = x + "px"; $tt.style.top = y + "px";
+  }
+  function ocultarTip() { $tt.classList.add("hidden"); }
+
+  function niceMax(v) {
+    if (v <= 0) return 1;
+    const p = 10 ** Math.floor(Math.log10(v)), f = v / p;
+    return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+  }
+  const leyenda = series => `<div class="legend">${series.map(s => `<span><i style="background:${s.color}"></i>${esc(s.label || s.key)}</span>`).join("")}</div>`;
+
+  // Barras apiladas. o: { cats:[{label,corto}], series:[{key,label,color}], valor(ci,key), pct, fmtY, fmtV, onClick(ci,key) }
+  function graficoApilado(el, o) {
+    const W = Math.max(320, el.clientWidth), H = 270, m = { l: 62, r: 8, t: 12, b: 26 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b, n = o.cats.length;
+    const tot = o.cats.map((_, ci) => o.series.reduce((a, s) => a + Math.max(0, o.valor(ci, s.key) || 0), 0));
+    const max = o.pct ? 1 : niceMax(Math.max(...tot, 1));
+    const Y = v => m.t + ih - (v / max) * ih;
+    const band = iw / n, bw = Math.min(44, band * 0.66);
+    let g = "";
+    for (let i = 0; i <= 4; i++) {
+      const v = (max / 4) * i, y = Y(v);
+      g += `<line class="${i ? "gl" : "ax"}" x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}"/>`;
+      g += `<text x="${m.l - 8}" y="${y + 4}" text-anchor="end">${o.pct ? Math.round(v * 100) + "%" : o.fmtY(v)}</text>`;
+    }
+    const paso = Math.ceil(n / Math.max(1, Math.floor(iw / 46)));
+    let bands = "", segs = "";
+    o.cats.forEach((c, ci) => {
+      const bx = m.l + ci * band;
+      bands += `<rect class="band" data-ci="${ci}" x="${bx}" y="${m.t}" width="${band}" height="${ih}"/>`;
+      if (ci % paso === 0) g += `<text x="${bx + band / 2}" y="${H - 8}" text-anchor="middle">${esc(c.corto || c.label)}</text>`;
+      const x0 = bx + (band - bw) / 2;
+      const vis = o.series.map(s => ({ s, v: Math.max(0, o.valor(ci, s.key) || 0) })).filter(x => x.v > 0);
+      let acc = 0;
+      vis.forEach((x, j) => {
+        const v = o.pct ? (tot[ci] ? x.v / tot[ci] : 0) : x.v;
+        const yTop = Y(acc + v), yBot = Y(acc) - (j > 0 ? 2 : 0);  // 2px de superficie entre segmentos
+        acc += v;
+        const h = yBot - yTop;
+        if (h <= 0.5) return;
+        const r = j === vis.length - 1 ? Math.min(4, h, bw / 2) : 0;  // solo el extremo superior redondeado
+        const d = `M${x0},${yBot}V${yTop + r}Q${x0},${yTop} ${x0 + r},${yTop}H${x0 + bw - r}Q${x0 + bw},${yTop} ${x0 + bw},${yTop + r}V${yBot}Z`;
+        segs += `<path class="seg" data-ci="${ci}" data-k="${esc(x.s.key)}" d="${d}" fill="${x.s.color}"/>`;
+      });
+    });
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}">${g}${bands}${segs}</svg>`;
+    const svg = el.querySelector("svg");
+    let on = null;
+    svg.addEventListener("mousemove", ev => {
+      const t = ev.target.closest("[data-ci]"); if (!t) { ocultarTip(); return; }
+      const ci = +t.dataset.ci;
+      if (on !== ci) { svg.querySelectorAll(".band.on").forEach(b => b.classList.remove("on")); svg.querySelector(`.band[data-ci="${ci}"]`).classList.add("on"); on = ci; }
+      const filas = o.series.map(s => ({ s, v: o.valor(ci, s.key) || 0 })).filter(x => x.v);
+      mostrarTip(`<b>${esc(o.cats[ci].label)}</b>` + filas.slice().reverse().map(x =>
+        `<div${t.dataset.k === x.s.key ? ' style="font-weight:600"' : ""}><span><i style="background:${x.s.color}"></i>${esc(x.s.label || x.s.key)}</span><span>${o.fmtV(x.v)} · ${pct(tot[ci] ? x.v / tot[ci] : 0)}</span></div>`).join("")
+        + `<div class="tot"><span>Total</span><span>${o.fmtV(tot[ci])}</span></div>`, ev);
+    });
+    svg.addEventListener("mouseleave", () => { ocultarTip(); svg.querySelectorAll(".band.on").forEach(b => b.classList.remove("on")); on = null; });
+    svg.addEventListener("click", ev => { const t = ev.target.closest("[data-ci]"); if (t && o.onClick) { ocultarTip(); o.onClick(+t.dataset.ci, t.dataset.k || null); } });
+  }
+
+  // Líneas con crosshair. o: { cats, series:[{key,label,color}], valor(ci,key) -> número|null, fmtY, fmtV }
+  function graficoLineas(el, o) {
+    const W = Math.max(320, el.clientWidth), H = 220, m = { l: 62, r: 140, t: 12, b: 26 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b, n = o.cats.length;
+    const vals = o.series.flatMap(s => o.cats.map((_, ci) => o.valor(ci, s.key))).filter(v => v != null && isFinite(v));
+    const max = niceMax(Math.max(...vals, 0.0001));
+    const X = ci => m.l + (n === 1 ? iw / 2 : (ci / (n - 1)) * iw), Y = v => m.t + ih - (v / max) * ih;
+    let g = "";
+    for (let i = 0; i <= 4; i++) {
+      const v = (max / 4) * i, y = Y(v);
+      g += `<line class="${i ? "gl" : "ax"}" x1="${m.l}" x2="${m.l + iw}" y1="${y}" y2="${y}"/><text x="${m.l - 8}" y="${y + 4}" text-anchor="end">${o.fmtY(v)}</text>`;
+    }
+    const paso = Math.ceil(n / Math.max(1, Math.floor(iw / 46)));
+    o.cats.forEach((c, ci) => { if (ci % paso === 0) g += `<text x="${X(ci)}" y="${H - 8}" text-anchor="middle">${esc(c.corto || c.label)}</text>`; });
+    let lineas = "", etiquetas = [];
+    o.series.forEach(s => {
+      let d = "", last = null;
+      o.cats.forEach((_, ci) => {
+        const v = o.valor(ci, s.key);
+        if (v == null || !isFinite(v)) { last = null; return; }
+        d += `${last == null ? "M" : "L"}${X(ci)},${Y(v)}`; last = ci;
+      });
+      lineas += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+      for (let ci = n - 1; ci >= 0; ci--) { const v = o.valor(ci, s.key); if (v != null && isFinite(v)) { etiquetas.push({ s, y: Y(v), x: X(ci), v }); break; } }
+    });
+    // Etiquetas directas al final de cada línea, separadas para que no se pisen
+    etiquetas.sort((a, b) => a.y - b.y);
+    for (let i = 1; i < etiquetas.length; i++) if (etiquetas[i].y - etiquetas[i - 1].y < 14) etiquetas[i].y = etiquetas[i - 1].y + 14;
+    const dl = etiquetas.map(e => `<text class="dl" x="${e.x + 8}" y="${e.y + 4}">${esc(e.s.label || e.s.key)} ${o.fmtY(e.v)}</text>`).join("");
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}">${g}${lineas}${dl}<g class="hover"></g><rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent"/></svg>`;
+    const svg = el.querySelector("svg"), $h = svg.querySelector(".hover");
+    svg.addEventListener("mousemove", ev => {
+      const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+      const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+      const ci = Math.max(0, Math.min(n - 1, Math.round(n === 1 ? 0 : ((p.x - m.l) / iw) * (n - 1))));
+      const x = X(ci);
+      let h = `<line x1="${x}" x2="${x}" y1="${m.t}" y2="${m.t + ih}" stroke="var(--axis)" stroke-width="1"/>`;
+      const filas = [];
+      o.series.forEach(s => { const v = o.valor(ci, s.key); if (v == null || !isFinite(v)) return;
+        h += `<circle cx="${x}" cy="${Y(v)}" r="4.5" fill="${s.color}" stroke="var(--card)" stroke-width="2"/>`; filas.push({ s, v }); });
+      $h.innerHTML = h;
+      mostrarTip(`<b>${esc(o.cats[ci].label)}</b>` + (filas.length ? filas.map(x => `<div><span><i style="background:${x.s.color}"></i>${esc(x.s.label || x.s.key)}</span><span>${o.fmtV(x.v, ci, x.s.key)}</span></div>`).join("") : `<div><span>Sin datos</span></div>`), ev);
+    });
+    svg.addEventListener("mouseleave", () => { $h.innerHTML = ""; ocultarTip(); });
+  }
+
+  // ═══════════════════ COBRANZAS ═══════════════════
+  const FORMAS = [
+    { key: "Mercado Pago", color: "var(--s1)" },
+    { key: "Pago Nube / Getnet", color: "var(--s2)" },
+    { key: "Transferencia", color: "var(--s3)" },
+    { key: "Ventas manuales", label: "Ventas manuales (bot)", color: "var(--s4)" },
+    { key: "Otros", color: "var(--s5)" },
+  ];
+  const cobUI = { modo: "u12", vista: "abs" };
+
+  function vistaCobranzas() {
+    return { sec: "cobranzas", titulo: "Cobranzas", render: async el => {
+      cargando(el);
+      const hoy = hoyAR(), kmHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+      let j; try { j = await api(`/web/cobranzas?desde=2022-01&hasta=${kmHoy}`); } catch (e) { return errorEn(el, e); }
+      const D = {};  // D[km][forma] = { cobrado, ordenes }
+      j.filas.forEach(f => { (D[f.mes] ||= {})[f.forma] = { cobrado: +f.cobrado || 0, ordenes: f.ordenes }; });
+      const anios = [...new Set(Object.keys(D).map(k => k.slice(0, 4)))].sort();
+
+      const kmMenos = (km, k) => { const [a, mm] = km.split("-").map(Number); const d = new Date(a, mm - 1 - k, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+      function periodos() {
+        if (cobUI.modo === "anual") return anios.map(a => ({ label: `Año ${a}`, corto: a, meses: Object.keys(D).filter(k => k.startsWith(a)).sort(), d: `${a}-01`, h: a === kmHoy.slice(0, 4) ? kmHoy : `${a}-12` }));
+        const kms = cobUI.modo === "u12" ? Array.from({ length: 12 }, (_, i) => kmMenos(kmHoy, 11 - i))
+          : Array.from({ length: 12 }, (_, i) => `${cobUI.modo}-${String(i + 1).padStart(2, "0")}`).filter(k => k <= kmHoy);
+        return kms.map(k => ({ label: mesLabel(k) + (k === kmHoy ? " (en curso)" : ""), corto: MESES[+k.slice(5) - 1] + (cobUI.modo === "u12" ? " " + k.slice(2, 4) : ""), meses: [k], d: k, h: k }));
+      }
+      const P = periodos();
+      const val = (pi, forma) => P[pi].meses.reduce((a, k) => a + (D[k]?.[forma]?.cobrado || 0), 0);
+      const com = (pi, rubro) => P[pi].meses.reduce((a, k) => a + -(j.comisiones[k]?.[rubro] || 0), 0);
+      const costo = (pi, forma, rubro) => { const c = val(pi, forma); const x = com(pi, rubro); return c > 0 && x ? x / c : null; };
+
+      // KPIs del período elegido
+      const totF = f => P.reduce((a, _, pi) => a + val(pi, f), 0);
+      const total = FORMAS.reduce((a, f) => a + totF(f.key), 0);
+      const tarjeta = totF("Mercado Pago") + totF("Pago Nube / Getnet");
+      const comTot = P.reduce((a, _, pi) => a + com(pi, "com_mp") + com(pi, "com_pagonube"), 0);
+      const nombreModo = cobUI.modo === "u12" ? "últimos 12 meses" : cobUI.modo === "anual" ? "todos los años" : cobUI.modo;
+
+      el.innerHTML = `
+        <div class="page-title">Cobranzas</div>
+        <div class="page-sub">Cuánto entra por cada forma de pago (órdenes pagadas de Tiendanube + ventas manuales cargadas con el bot). Tocá una barra para ver esas órdenes.</div>
+        <div class="toolbar">
+          <button class="chip${cobUI.modo === "u12" ? " active" : ""}" data-m="u12">Últimos 12 meses</button>
+          ${anios.map(a => `<button class="chip${cobUI.modo === a ? " active" : ""}" data-m="${a}">${a}</button>`).join("")}
+          <button class="chip${cobUI.modo === "anual" ? " active" : ""}" data-m="anual">Por año</button>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><div class="kpi-l">Cobrado · ${esc(nombreModo)}</div><div class="kpi-v">${money(total)}</div></div>
+          ${FORMAS.filter(f => totF(f.key)).map(f => `<div class="kpi"><div class="kpi-l"><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${f.color};margin-right:6px"></i>${esc(f.label || f.key)}</div><div class="kpi-v">${pct(total ? totF(f.key) / total : 0)}</div><div class="count">${money(totF(f.key))}</div></div>`).join("")}
+          <div class="kpi"><div class="kpi-l">Costo de cobrar con tarjeta</div><div class="kpi-v">${pct(tarjeta ? comTot / tarjeta : null)}</div><div class="count">${money(comTot)} en comisiones</div></div>
+        </div>
+        <div class="card">
+          <div class="chart-head"><h3>Cobrado por forma de pago</h3><span class="spacer"></span>${leyenda(FORMAS)}
+            <div class="seg-toggle"><button data-v="abs" class="${cobUI.vista === "abs" ? "on" : ""}">$</button><button data-v="pct" class="${cobUI.vista === "pct" ? "on" : ""}">% del total</button></div></div>
+          <div class="chart" data-r="barras"></div>
+        </div>
+        <div class="card">
+          <div class="chart-head"><h3>Costo de cobrar: comisión sobre lo cobrado</h3></div>
+          <div class="chart" data-r="lineas"></div>
+          <div class="chart-note">Aproximado: la comisión se imputa al mes en que se liquida y la venta al mes en que se hizo, así que un mes puede quedar un poco alto y el siguiente un poco bajo. Incluye costo de cuotas.</div>
+        </div>
+        <div data-r="tabla"></div>`;
+
+      const dibujar = () => {
+        graficoApilado(el.querySelector('[data-r="barras"]'), {
+          cats: P, series: FORMAS, valor: val, pct: cobUI.vista === "pct", fmtY: moneyK, fmtV: money,
+          onClick: (pi, forma) => {
+            const p = P[pi];
+            if (forma === "Ventas manuales") return abrir(vistaRubro("ventas_manual", p.d, p.h));
+            abrir(vistaVentas({ desde: `${p.d}-01`, hasta: finDeMes(p.h) }, `Ventas · ${p.label}${forma ? " · " + forma : ""}`, forma ? { forma } : null));
+          },
+        });
+        graficoLineas(el.querySelector('[data-r="lineas"]'), {
+          cats: P,
+          series: [{ key: "mp", label: "Mercado Pago", color: "var(--s1)" }, { key: "pn", label: "Pago Nube", color: "var(--s2)" }],
+          valor: (pi, k) => k === "mp" ? costo(pi, "Mercado Pago", "com_mp") : costo(pi, "Pago Nube / Getnet", "com_pagonube"),
+          fmtY: v => nf2.format(v * 100) + "%",
+          fmtV: (v, pi, k) => `${nf2.format(v * 100)} % · ${money(k === "mp" ? com(pi, "com_mp") : com(pi, "com_pagonube"))}`,
+        });
+      };
+      dibujar();
+      alRedimensionar = dibujar;
+
+      // Tabla: la misma información que el gráfico (sigue el toggle $ / %)
+      const enPct = cobUI.vista === "pct";
+      const filas = P.map((p, pi) => {
+        const t = FORMAS.reduce((a, f) => a + val(pi, f.key), 0);
+        const r = { periodo: p.label, pi, total: t, c_mp: costo(pi, "Mercado Pago", "com_mp"), c_pn: costo(pi, "Pago Nube / Getnet", "com_pagonube") };
+        FORMAS.forEach(f => r[f.key] = enPct ? (t ? val(pi, f.key) / t : 0) : val(pi, f.key));
+        r.ordenes = P[pi].meses.reduce((a, k) => a + Object.values(D[k] || {}).reduce((b, x) => b + (x.ordenes || 0), 0), 0);
+        return r;
+      }).reverse();
+      tabla(el.querySelector('[data-r="tabla"]'), {
+        columnas: [
+          { key: "periodo", label: "Período", tipo: "texto" },
+          ...FORMAS.map(f => ({ key: f.key, label: f.label || f.key, tipo: enPct ? "pct" : "money", sumar: !enPct })),
+          { key: "total", label: "Total cobrado", tipo: "money" },
+          { key: "ordenes", label: "Órdenes TN", tipo: "int" },
+          { key: "c_mp", label: "Costo MP", tipo: "pct" },
+          { key: "c_pn", label: "Costo PN", tipo: "pct" },
+        ],
+        filas, exportar: `Cobranzas ${nombreModo}`, totales: true,
+        onRow: r => { const p = P[r.pi]; abrir(vistaVentas({ desde: `${p.d}-01`, hasta: finDeMes(p.h) }, `Ventas · ${p.label}`)); },
+      });
+
+      el.querySelectorAll("[data-m]").forEach(b => b.addEventListener("click", () => { cobUI.modo = b.dataset.m; render(); }));
+      el.querySelectorAll("[data-v]").forEach(b => b.addEventListener("click", () => { cobUI.vista = b.dataset.v; render(); }));
+    }};
+  }
+
+  const SECCIONES = { resultados: vistaResultados, ventas: () => vistaVentas(), productos: vistaProductos, cobranzas: vistaCobranzas, clientes: vistaClientes };
 
   // ═══════════════════ login / arranque ═══════════════════
   function pantallaLogin(msg = "") {
