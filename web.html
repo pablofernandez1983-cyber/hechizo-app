@@ -15,7 +15,7 @@
       --danger: #f87171; --success: #34d399; --warn: #fbbf24;
       --text: #f1e9ff; --muted: #9d8ec0; --border: rgba(192,132,252,0.15); --hover: rgba(192,132,252,0.10);
       --zebra: rgba(255,255,255,0.02);
-      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --dneg: #e66767;
       --grid: rgba(192,132,252,0.10); --axis: rgba(192,132,252,0.30);
     }
     body.light {
@@ -23,7 +23,7 @@
       --danger: #dc2626; --success: #059669; --warn: #b45309;
       --text: #1a0a2e; --muted: #6b5b8a; --border: rgba(124,58,237,0.15); --hover: rgba(124,58,237,0.08);
       --zebra: rgba(124,58,237,0.025);
-      --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+      --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --dneg: #e34948;
       --grid: rgba(124,58,237,0.08); --axis: rgba(124,58,237,0.28);
     }
     body { font-family: "DM Sans", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
@@ -157,6 +157,11 @@
     .chart .seg { cursor: pointer; }
     .chart .seg:hover { filter: brightness(1.15); }
     .chart-note { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .chart-note b { color: var(--text); font-weight: 600; }
+    .ver-datos { margin-top: 8px; font-size: 12px; }
+    .ver-datos summary { cursor: pointer; color: var(--accent); width: fit-content; }
+    .ver-datos .tbl-wrap { margin-top: 8px; }
+    .grid2 > .card { min-width: 0; }
     .tt { position: fixed; z-index: 50; pointer-events: none; background: var(--card2); border: 1px solid var(--border); border-radius: 10px;
           padding: 8px 10px; font-size: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.35); min-width: 190px; font-variant-numeric: tabular-nums; }
     .tt b { display: block; margin-bottom: 4px; font-weight: 600; }
@@ -205,6 +210,7 @@
         <button class="nav-btn" data-sec="productos">Productos</button>
         <button class="nav-btn" data-sec="cobranzas">Cobranzas</button>
         <button class="nav-btn" data-sec="clientes">Clientes</button>
+        <button class="nav-btn" data-sec="graficos">Gráficos</button>
       </nav>
       <div class="top-right">
         <span class="count" id="actualizado"></span>
@@ -1029,7 +1035,259 @@
     }};
   }
 
-  const SECCIONES = { resultados: vistaResultados, ventas: () => vistaVentas(), productos: vistaProductos, cobranzas: vistaCobranzas, clientes: vistaClientes };
+  // ═══════════════════ GRÁFICOS (análisis) ═══════════════════
+  // "Ver datos": la tabla con los mismos números de cada gráfico (accesibilidad / modo claro)
+  function verDatos(cols, filas) {
+    return `<details class="ver-datos"><summary>Ver datos</summary><div class="tbl-wrap" style="max-height:320px"><table>
+      <thead><tr>${cols.map(c => `<th class="${c.num ? "num" : ""}" style="cursor:default">${esc(c.label)}</th>`).join("")}</tr></thead>
+      <tbody>${filas.map(f => `<tr>${cols.map(c => `<td class="${c.num ? "num" : ""}">${c.fmt ? c.fmt(f[c.key], f) : esc(f[c.key])}</td>`).join("")}</tr>`).join("")}</tbody></table></div></details>`;
+  }
+
+  // Mapa de calor día × hora (secuencial de un solo tono, mezclado con la superficie)
+  function mapaCalor(el, o) {
+    const W = Math.max(320, el.clientWidth), m = { l: 40, r: 8, t: 6, b: 24 };
+    const cw = (W - m.l - m.r) / 24, ch = 26, H = m.t + ch * 7 + m.b;
+    const max = Math.max(1, ...o.celdas.flat().map(c => c.ordenes));
+    let g = "";
+    o.dias.forEach((d, di) => {
+      g += `<text x="${m.l - 8}" y="${m.t + di * ch + ch / 2 + 4}" text-anchor="end">${d}</text>`;
+      for (let h = 0; h < 24; h++) {
+        const c = o.celdas[di][h], p = c.ordenes ? 12 + 88 * (c.ordenes / max) : 0;
+        const fill = c.ordenes ? `color-mix(in oklab, var(--s1) ${p.toFixed(0)}%, var(--card))` : "var(--zebra)";
+        g += `<rect class="hm" data-d="${di}" data-h="${h}" x="${m.l + h * cw + 1}" y="${m.t + di * ch + 1}" width="${cw - 2}" height="${ch - 2}" rx="3" fill="${fill}"/>`;
+      }
+    });
+    for (let h = 0; h < 24; h += 2) g += `<text x="${m.l + h * cw + cw / 2}" y="${H - 8}" text-anchor="middle">${h}h</text>`;
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}">${g}</svg>`;
+    const svg = el.querySelector("svg");
+    svg.addEventListener("mousemove", ev => {
+      const t = ev.target.closest(".hm"); if (!t) return ocultarTip();
+      const c = o.celdas[+t.dataset.d][+t.dataset.h];
+      mostrarTip(`<b>${o.diasL[+t.dataset.d]} de ${t.dataset.h} a ${+t.dataset.h + 1} h</b><div><span>Órdenes</span><span>${nf0.format(c.ordenes)}</span></div><div><span>Facturado</span><span>${money(c.total)}</span></div>`, ev);
+    });
+    svg.addEventListener("mouseleave", ocultarTip);
+  }
+
+  // Barras horizontales divergentes (suben / bajan)
+  function barrasDivergentes(el, o) {
+    const W = Math.max(320, el.clientWidth), rowH = 24, m = { l: Math.min(300, W * 0.38), r: 70, t: 4, b: 4 };
+    const H = m.t + o.filas.length * rowH + m.b, iw = W - m.l - m.r;
+    const max = Math.max(1, ...o.filas.map(f => Math.abs(f.v)));
+    const x0 = m.l + iw / 2, sc = (iw / 2) / max;
+    let g = `<line class="ax" x1="${x0}" x2="${x0}" y1="${m.t}" y2="${H - m.b}"/>`;
+    o.filas.forEach((f, i) => {
+      const y = m.t + i * rowH, w = Math.max(2, Math.abs(f.v) * sc), bh = rowH - 8;
+      const x = f.v >= 0 ? x0 : x0 - w, r = Math.min(4, bh / 2, w);
+      const d = f.v >= 0
+        ? `M${x},${y + 4}H${x + w - r}Q${x + w},${y + 4} ${x + w},${y + 4 + r}V${y + 4 + bh - r}Q${x + w},${y + 4 + bh} ${x + w - r},${y + 4 + bh}H${x}Z`
+        : `M${x + w},${y + 4}H${x + r}Q${x},${y + 4} ${x},${y + 4 + r}V${y + 4 + bh - r}Q${x},${y + 4 + bh} ${x + r},${y + 4 + bh}H${x + w}Z`;
+      g += `<rect class="band" data-i="${i}" x="0" y="${y}" width="${W}" height="${rowH}"/>`;
+      g += `<path class="seg" data-i="${i}" d="${d}" fill="${f.v >= 0 ? "var(--s1)" : "var(--dneg)"}"/>`;
+      g += `<text x="${m.l - 10}" y="${y + rowH / 2 + 4}" text-anchor="end" class="dl">${esc(f.label.length > 42 ? f.label.slice(0, 41) + "…" : f.label)}</text>`;
+      g += `<text x="${f.v >= 0 ? x + w + 6 : x - 6}" y="${y + rowH / 2 + 4}" text-anchor="${f.v >= 0 ? "start" : "end"}">${f.v > 0 ? "+" : ""}${nf0.format(f.v)}</text>`;
+    });
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}">${g}</svg>`;
+    const svg = el.querySelector("svg");
+    svg.addEventListener("mousemove", ev => { const t = ev.target.closest("[data-i]"); if (!t) return ocultarTip(); mostrarTip(o.tip(o.filas[+t.dataset.i]), ev); });
+    svg.addEventListener("mouseleave", ocultarTip);
+    svg.addEventListener("click", ev => { const t = ev.target.closest("[data-i]"); if (t && o.onClick) { ocultarTip(); o.onClick(o.filas[+t.dataset.i]); } });
+  }
+
+  const grUI = { rango: "12", dias: 90, prodPor: "unidades" };
+  const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+  const DIAS_L = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+  function vistaGraficos() {
+    return { sec: "graficos", titulo: "Gráficos", render: async el => {
+      cargando(el, "Armando los gráficos…");
+      const hoy = hoyAR(), kmHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+      const kmMenos = (km, k) => { const [a, mm] = km.split("-").map(Number); const d = new Date(a, mm - 1 - k, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+      const desdeKm = grUI.rango === "todo" ? "2022-01" : kmMenos(kmHoy, +grUI.rango - 1);
+      let P, A, DH, PC;
+      try {
+        [P, A, DH, PC] = await Promise.all([
+          asegurarPnl(), api("/web/analisis"),
+          api(`/web/dia-hora?desde=${desdeKm}-01&hasta=${iso(hoy)}`),
+          api(`/web/productos-cambio?dias=${grUI.dias}`),
+        ]);
+      } catch (e) { return errorEn(el, e); }
+
+      const meses = A.mensual.filter(r => r.mes >= desdeKm && r.mes <= kmHoy);
+      const cats = meses.map(r => ({ label: mesLabel(r.mes) + (r.mes === kmHoy ? " (en curso)" : ""), corto: MESES[+r.mes.slice(5) - 1] + " " + r.mes.slice(2, 4), km: r.mes }));
+      const rec = A.recompra || {};
+      const nombreRango = grUI.rango === "todo" ? "desde 2022" : `últimos ${grUI.rango} meses`;
+
+      el.innerHTML = `
+        <div class="page-title">Gráficos</div>
+        <div class="page-sub">Pasá el mouse para ver los valores; debajo de cada gráfico está la tabla con los datos.</div>
+        <div class="toolbar">
+          ${[["12", "Últimos 12 meses"], ["24", "Últimos 24 meses"], ["todo", "Todo"]].map(([k, l]) => `<button class="chip${grUI.rango === k ? " active" : ""}" data-rg="${k}">${l}</button>`).join("")}
+        </div>
+
+        <div class="card"><div class="chart-head"><h3>¿Cuándo compran?</h3><span class="count">${esc(nombreRango)} · hora de Argentina</span></div>
+          <div class="chart" data-r="calor"></div><div data-r="calor-dias" class="chart-note"></div><div data-r="calor-datos"></div></div>
+
+        <div class="grid2">
+          <div class="card"><div class="chart-head"><h3>Inversión en publicidad</h3><span class="spacer"></span>${leyenda(SER_PUB)}</div>
+            <div class="chart" data-r="pub"></div><div data-r="pub-datos"></div></div>
+          <div class="card"><div class="chart-head"><h3>Ingresos por cada $1 de publicidad</h3></div>
+            <div class="chart" data-r="roas"></div>
+            <div class="chart-note">Ingresos del mes ÷ publicidad del mes (Meta + Google + agencia). No es atribución por campaña: incluye ventas que hubieran ocurrido igual.</div></div>
+        </div>
+
+        <div class="grid2">
+          <div class="card"><div class="chart-head"><h3>Clientes nuevos y recurrentes</h3><span class="spacer"></span>${leyenda(SER_CLI)}</div>
+            <div class="chart" data-r="cli"></div><div data-r="cli-datos"></div></div>
+          <div class="card"><h3>Recompra (historial completo)</h3>
+            <div class="kpis" style="margin:0">
+              <div class="kpi"><div class="kpi-l">Clientes únicos</div><div class="kpi-v">${nf0.format(rec.clientes || 0)}</div></div>
+              <div class="kpi"><div class="kpi-l">Volvieron a comprar</div><div class="kpi-v">${pct(rec.clientes ? rec.volvieron / rec.clientes : null)}</div><div class="count">${nf0.format(rec.volvieron || 0)} clientes</div></div>
+              <div class="kpi"><div class="kpi-l">Compras por cliente</div><div class="kpi-v">${nf2.format(rec.compras_prom || 0)}</div></div>
+              <div class="kpi"><div class="kpi-l">Días hasta la 2ª compra</div><div class="kpi-v">${rec.dias_a_segunda != null ? nf0.format(rec.dias_a_segunda) : "–"}</div><div class="count">mediana</div></div>
+            </div>
+            <div class="chart-note">Un cliente = un email (o el nombre si no tiene email). "Nuevo" = su primera compra fue ese mes.</div></div>
+        </div>
+
+        <div class="grid2">
+          <div class="card"><div class="chart-head"><h3>Resultado neto, año contra año</h3><span class="spacer"></span><span data-r="ley-anios"></span></div>
+            <div class="chart" data-r="res-yoy"></div></div>
+          <div class="card"><div class="chart-head"><h3>Margen sobre ingresos, año contra año</h3></div>
+            <div class="chart" data-r="mar-yoy"></div>
+            <div class="chart-note">En pesos de cada mes, sin ajustar por inflación. No incluye el mes en curso.</div></div>
+        </div>
+
+        <div class="grid2">
+          <div class="card"><div class="chart-head"><h3>Ticket promedio</h3></div><div class="chart" data-r="ticket"></div></div>
+          <div class="card"><div class="chart-head"><h3>Unidades por orden</h3></div><div class="chart" data-r="upo"></div></div>
+        </div>
+        <div data-r="ticket-datos" style="margin:-8px 0 16px"></div>
+
+        <div class="card"><div class="chart-head"><h3>Productos que suben y bajan</h3><span class="spacer"></span>
+            ${[30, 90, 180].map(d => `<button class="chip${grUI.dias === d ? " active" : ""}" data-dias="${d}">${d} días</button>`).join("")}
+            <div class="seg-toggle"><button data-pp="unidades" class="${grUI.prodPor === "unidades" ? "on" : ""}">Unidades</button><button data-pp="facturado" class="${grUI.prodPor === "facturado" ? "on" : ""}">$</button></div></div>
+          <div class="count" style="margin-bottom:8px">Últimos ${grUI.dias} días contra los ${grUI.dias} anteriores. Tocá un producto para ver su detalle.</div>
+          <div class="chart" data-r="prod"></div><div data-r="prod-datos"></div></div>
+
+        <div class="grid2">
+          <div class="card"><div class="chart-head"><h3>Envíos por empresa</h3><span class="spacer"></span>${leyenda(SER_ENV)}</div>
+            <div class="chart" data-r="env"></div><div data-r="env-datos"></div></div>
+          <div class="card"><div class="chart-head"><h3>Órdenes con envío gratis</h3></div>
+            <div class="chart" data-r="gratis"></div>
+            <div class="chart-note">El reporte toma como costo de cada envío lo mismo que pagó el cliente (salvo el histórico de Correo hasta jul-2024), por eso no se muestra "cobrado vs costo".</div></div>
+        </div>`;
+
+      // ── datos derivados
+      const celdas = DIAS.map(() => Array.from({ length: 24 }, () => ({ ordenes: 0, total: 0 })));
+      DH.filas.forEach(f => { const c = celdas[f.dow - 1][f.hora]; c.ordenes += f.ordenes; c.total += f.total; });
+      const porDia = celdas.map(r => r.reduce((a, c) => a + c.ordenes, 0)), totDH = porDia.reduce((a, b) => a + b, 0);
+      const porHora = Array.from({ length: 24 }, (_, h) => celdas.reduce((a, r) => a + r[h].ordenes, 0));
+      const topDia = porDia.indexOf(Math.max(...porDia)), topHora = porHora.indexOf(Math.max(...porHora));
+
+      const pubMes = cats.map(c => ({ meta: -P.val("pub_meta", c.km), gads: -P.val("pub_gads", c.km), ag: -P.val("pub_agencia", c.km) }));
+      const ingMes = cats.map(c => agregados(P, [c.km]).ingresos);
+
+      const anios = P.anios;
+      const colorAnio = a => `var(--s${(anios.indexOf(a) % 5) + 1})`;
+      const serAnios = anios.map(a => ({ key: a, label: a, color: colorAnio(a) }));
+      const yoy = (a, mi, campo) => { const km = `${a}-${String(mi + 1).padStart(2, "0")}`; if (km >= kmHoy || !P.meses.includes(km)) return null; const g = agregados(P, [km]); return campo === "res" ? g.resultado : g.margen; };
+
+      let prods = PC.filas.map(f => ({ id: f.producto_id, label: f.producto, ua: +f.u_act, ub: +f.u_ant, fa: +f.f_act, fb: +f.f_ant }));
+      prods.forEach(p => p.v = grUI.prodPor === "unidades" ? p.ua - p.ub : p.fa - p.fb);
+      const suben = prods.filter(p => p.v > 0).sort((a, b) => b.v - a.v).slice(0, 10);
+      const bajan = prods.filter(p => p.v < 0).sort((a, b) => a.v - b.v).slice(0, 10).reverse();
+      const prodFilas = [...suben, ...bajan];
+      const fmtProd = v => grUI.prodPor === "unidades" ? nf0.format(v) : money(v);
+
+      const dibujar = () => {
+        mapaCalor(el.querySelector('[data-r="calor"]'), { dias: DIAS, diasL: DIAS_L, celdas });
+        graficoApilado(el.querySelector('[data-r="pub"]'), {
+          cats, series: SER_PUB, valor: (ci, k) => pubMes[ci][k], fmtY: moneyK, fmtV: money,
+          onClick: ci => abrir(vistaResumen(cats[ci].km, cats[ci].km, "Publicidad")),
+        });
+        graficoLineas(el.querySelector('[data-r="roas"]'), {
+          cats, series: [{ key: "r", label: "Ingresos / publicidad", color: "var(--s1)" }],
+          valor: ci => { const p = pubMes[ci].meta + pubMes[ci].gads + pubMes[ci].ag; return p > 0 ? ingMes[ci] / p : null; },
+          fmtY: v => nf2.format(v) + "x", fmtV: (v, ci) => `${nf2.format(v)}x · ${money(ingMes[ci])} / ${money(pubMes[ci].meta + pubMes[ci].gads + pubMes[ci].ag)}`,
+        });
+        graficoApilado(el.querySelector('[data-r="cli"]'), {
+          cats, series: SER_CLI, valor: (ci, k) => k === "nuevos" ? +meses[ci].clientes_nuevos : meses[ci].clientes - meses[ci].clientes_nuevos,
+          fmtY: v => nf0.format(v), fmtV: v => nf0.format(v) + " clientes",
+          onClick: ci => abrir(vistaVentas({ desde: `${cats[ci].km}-01`, hasta: finDeMes(cats[ci].km) }, `Ventas · ${cats[ci].label}`)),
+        });
+        graficoLineas(el.querySelector('[data-r="res-yoy"]'), {
+          cats: MESES.map((m, i) => ({ label: MESES_L[i], corto: m })), series: serAnios,
+          valor: (mi, a) => yoy(a, mi, "res"), fmtY: moneyK, fmtV: money,
+        });
+        graficoLineas(el.querySelector('[data-r="mar-yoy"]'), {
+          cats: MESES.map((m, i) => ({ label: MESES_L[i], corto: m })), series: serAnios,
+          valor: (mi, a) => yoy(a, mi, "mar"), fmtY: v => nf2.format(Math.round(v * 1000) / 10) + "%", fmtV: v => pct(v),
+        });
+        graficoLineas(el.querySelector('[data-r="ticket"]'), {
+          cats, series: [{ key: "t", label: "Ticket", color: "var(--s1)" }],
+          valor: ci => meses[ci].ordenes ? meses[ci].total / meses[ci].ordenes : null, fmtY: moneyK, fmtV: (v, ci) => `${money(v)} · ${nf0.format(meses[ci].ordenes)} órdenes`,
+        });
+        graficoLineas(el.querySelector('[data-r="upo"]'), {
+          cats, series: [{ key: "u", label: "Unidades", color: "var(--s3)" }],
+          valor: ci => meses[ci].ordenes ? meses[ci].unidades / meses[ci].ordenes : null, fmtY: v => nf2.format(v), fmtV: (v, ci) => `${nf2.format(v)} unidades por orden · ${nf0.format(meses[ci].unidades)} en total`,
+        });
+        if (prodFilas.length) barrasDivergentes(el.querySelector('[data-r="prod"]'), {
+          filas: prodFilas,
+          tip: f => `<b>${esc(f.label)}</b><div><span>Últimos ${grUI.dias} días</span><span>${nf0.format(f.ua)} u · ${money(f.fa)}</span></div><div><span>${grUI.dias} días anteriores</span><span>${nf0.format(f.ub)} u · ${money(f.fb)}</span></div><div class="tot"><span>Cambio</span><span>${f.v > 0 ? "+" : ""}${fmtProd(f.v)}</span></div>`,
+          onClick: f => abrir(vistaProducto(f.id, f.label)),
+        });
+        else el.querySelector('[data-r="prod"]').innerHTML = `<div class="count">Sin datos en el período.</div>`;
+        graficoApilado(el.querySelector('[data-r="env"]'), {
+          cats, series: SER_ENV, valor: (ci, k) => +meses[ci][k], fmtY: v => nf0.format(v), fmtV: v => nf0.format(v) + " envíos",
+        });
+        graficoLineas(el.querySelector('[data-r="gratis"]'), {
+          cats, series: [{ key: "g", label: "Envío gratis", color: "var(--s2)" }],
+          valor: ci => meses[ci].ordenes ? meses[ci].envio_gratis / meses[ci].ordenes : null,
+          fmtY: v => nf2.format(Math.round(v * 1000) / 10) + "%", fmtV: (v, ci) => `${pct(v)} · ${nf0.format(meses[ci].envio_gratis)} de ${nf0.format(meses[ci].ordenes)}`,
+        });
+      };
+      dibujar();
+      alRedimensionar = dibujar;
+
+      // ── textos y tablas "Ver datos"
+      el.querySelector('[data-r="ley-anios"]').innerHTML = leyenda(serAnios);
+      el.querySelector('[data-r="calor-dias"]').innerHTML = totDH
+        ? `Día con más compras: <b>${DIAS_L[topDia]}</b> (${pct(porDia[topDia] / totDH)}). Franja horaria pico: <b>${topHora} a ${topHora + 1} h</b>. ${nf0.format(totDH)} órdenes en total.`
+        : "Sin datos de hora para este período.";
+      el.querySelector('[data-r="calor-datos"]').innerHTML = verDatos(
+        [{ key: "d", label: "Día" }, ...Array.from({ length: 24 }, (_, h) => ({ key: h, label: h + "h", num: true })), { key: "t", label: "Total", num: true }],
+        DIAS_L.map((d, di) => ({ d, ...Object.fromEntries(celdas[di].map((c, h) => [h, c.ordenes])), t: porDia[di] })));
+      el.querySelector('[data-r="pub-datos"]').innerHTML = verDatos(
+        [{ key: "m", label: "Mes" }, { key: "meta", label: "Meta", num: true, fmt: money }, { key: "gads", label: "Google", num: true, fmt: money },
+         { key: "ag", label: "Agencia", num: true, fmt: money }, { key: "ing", label: "Ingresos", num: true, fmt: money }, { key: "r", label: "Ingresos / publicidad", num: true, fmt: v => v == null ? "–" : nf2.format(v) + "x" }],
+        cats.map((c, ci) => { const p = pubMes[ci].meta + pubMes[ci].gads + pubMes[ci].ag; return { m: c.label, ...pubMes[ci], ing: ingMes[ci], r: p > 0 ? ingMes[ci] / p : null }; }).reverse());
+      el.querySelector('[data-r="cli-datos"]').innerHTML = verDatos(
+        [{ key: "m", label: "Mes" }, { key: "c", label: "Clientes", num: true, fmt: v => nf0.format(v) }, { key: "n", label: "Nuevos", num: true, fmt: v => nf0.format(v) },
+         { key: "p", label: "% nuevos", num: true, fmt: v => pct(v) }, { key: "tn", label: "Facturado por nuevos", num: true, fmt: money }],
+        meses.map((r, ci) => ({ m: cats[ci].label, c: r.clientes, n: r.clientes_nuevos, p: r.clientes ? r.clientes_nuevos / r.clientes : 0, tn: r.total_nuevos })).reverse());
+      el.querySelector('[data-r="ticket-datos"]').innerHTML = verDatos(
+        [{ key: "m", label: "Mes" }, { key: "o", label: "Órdenes", num: true, fmt: v => nf0.format(v) }, { key: "t", label: "Ticket promedio", num: true, fmt: money },
+         { key: "u", label: "Unidades", num: true, fmt: v => nf0.format(v) }, { key: "upo", label: "Unidades por orden", num: true, fmt: v => nf2.format(v) }],
+        meses.map((r, ci) => ({ m: cats[ci].label, o: r.ordenes, t: r.ordenes ? r.total / r.ordenes : 0, u: r.unidades, upo: r.ordenes ? r.unidades / r.ordenes : 0 })).reverse());
+      el.querySelector('[data-r="prod-datos"]').innerHTML = verDatos(
+        [{ key: "label", label: "Producto" }, { key: "ub", label: `Unid. ${grUI.dias} días ant.`, num: true, fmt: v => nf0.format(v) }, { key: "ua", label: `Unid. últimos ${grUI.dias}`, num: true, fmt: v => nf0.format(v) },
+         { key: "fb", label: "$ antes", num: true, fmt: money }, { key: "fa", label: "$ ahora", num: true, fmt: money }, { key: "v", label: "Cambio", num: true, fmt: fmtProd }],
+        prodFilas);
+      el.querySelector('[data-r="env-datos"]').innerHTML = verDatos(
+        [{ key: "m", label: "Mes" }, ...SER_ENV.map(s => ({ key: s.key, label: s.label, num: true, fmt: v => nf0.format(v) })),
+         { key: "g", label: "Envío gratis", num: true, fmt: v => nf0.format(v) }, { key: "ec", label: "Envío cobrado", num: true, fmt: money }],
+        meses.map((r, ci) => ({ m: cats[ci].label, ...r, g: r.envio_gratis, ec: r.envio_cobrado })).reverse());
+
+      el.querySelectorAll("[data-rg]").forEach(b => b.addEventListener("click", () => { grUI.rango = b.dataset.rg; render(); }));
+      el.querySelectorAll("[data-dias]").forEach(b => b.addEventListener("click", () => { grUI.dias = +b.dataset.dias; render(); }));
+      el.querySelectorAll("[data-pp]").forEach(b => b.addEventListener("click", () => { grUI.prodPor = b.dataset.pp; render(); }));
+    }};
+  }
+  const SER_PUB = [{ key: "meta", label: "Meta", color: "var(--s1)" }, { key: "gads", label: "Google Ads", color: "var(--s2)" }, { key: "ag", label: "Agencia", color: "var(--s3)" }];
+  const SER_CLI = [{ key: "rec", label: "Recurrentes", color: "var(--s1)" }, { key: "nuevos", label: "Nuevos", color: "var(--s2)" }];
+  const SER_ENV = [{ key: "env_correo", label: "Correo Arg.", color: "var(--s1)" }, { key: "env_andreani", label: "Andreani", color: "var(--s2)" },
+                   { key: "env_moto", label: "Moto", color: "var(--s3)" }, { key: "env_otro", label: "Otro / retiro", color: "var(--s4)" }];
+
+  const SECCIONES = { resultados: vistaResultados, ventas: () => vistaVentas(), productos: vistaProductos, cobranzas: vistaCobranzas, clientes: vistaClientes, graficos: vistaGraficos };
 
   // ═══════════════════ login / arranque ═══════════════════
   function pantallaLogin(msg = "") {
