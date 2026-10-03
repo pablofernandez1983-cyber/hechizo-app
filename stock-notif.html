@@ -231,6 +231,25 @@ tr:hover td{background:rgba(192,132,252,0.04)}
 <script>
 const API = 'https://hechizo-reporte-nuevo-production.up.railway.app';
 
+// Misma clave que web.html (se comparte por localStorage); si falta o es incorrecta, se pide.
+const KEY_STORAGE = 'hechizo_web_key';
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+let clave = lsGet(KEY_STORAGE) || '';
+
+async function apiFetch(path, opts = {}) {
+  for (let intento = 0; intento < 2; intento++) {
+    if (!clave) {
+      clave = (prompt('Clave del reporte web:') || '').trim();
+      if (!clave) throw new Error('Falta la clave');
+    }
+    const r = await fetch(API + path, { ...opts, headers: { ...(opts.headers || {}), 'X-Web-Key': clave } });
+    if (r.status !== 401) { lsSet(KEY_STORAGE, clave); return r; }
+    clave = ''; lsSet(KEY_STORAGE, null);
+  }
+  throw new Error('Clave incorrecta');
+}
+
 let _allClientes  = [];
 let _allProductos = [];
 let _activeTab    = 'clientes';
@@ -248,7 +267,7 @@ function switchTab(name, el) {
 
 async function loadStats() {
   try {
-    const r = await fetch(API + '/notify/stats');
+    const r = await apiFetch('/notify/stats');
     const d = await r.json();
     if (d.ok) {
       document.getElementById('stat-sent').textContent     = d.sent.toLocaleString('es-AR');
@@ -260,7 +279,7 @@ async function loadStats() {
 
 async function loadClientes() {
   try {
-    const r = await fetch(API + '/notify/list');
+    const r = await apiFetch('/notify/list');
     const d = await r.json();
     if (d.ok) { _allClientes = d.items; applyFilters(); }
   } catch(e) {
@@ -316,7 +335,7 @@ function renderClientes(items) {
 
 async function deleteNotif(id) {
   if (!confirm('¿Cancelar esta notificación?')) return;
-  const r = await fetch(API + '/notify/' + id, {method:'DELETE'});
+  const r = await apiFetch('/notify/' + id, {method:'DELETE'});
   const d = await r.json();
   if (d.ok) {
     const item = _allClientes.find(x => x.id === id);
@@ -327,7 +346,7 @@ async function deleteNotif(id) {
 }
 
 async function restoreNotif(id) {
-  const r = await fetch(API + '/notify/' + id + '/restore', {method:'POST'});
+  const r = await apiFetch('/notify/' + id + '/restore', {method:'POST'});
   const d = await r.json();
   if (d.ok) {
     const item = _allClientes.find(x => x.id === id);
@@ -343,7 +362,7 @@ async function loadProductos() {
   document.getElementById('productos-body').innerHTML =
     '<tr><td colspan="5" class="loading">Cargando desde Tiendanube…</td></tr>';
   try {
-    const r = await fetch(API + '/notify/products');
+    const r = await apiFetch('/notify/products');
     const d = await r.json();
     if (d.ok) { _allProductos = d.items; renderProductos(_allProductos); }
   } catch(e) {
@@ -386,7 +405,7 @@ async function sendProduct(productId, productName, btn) {
   const row = btn.closest('tr');
   row.style.opacity = '.4';
   try {
-    const r = await fetch(API + '/notify/send-product/' + productId, {method:'POST'});
+    const r = await apiFetch('/notify/send-product/' + productId, {method:'POST'});
     const d = await r.json();
     row.style.opacity = '1';
     if (d.ok) {
@@ -407,7 +426,7 @@ async function discardProduct(productId, btn) {
   const row = btn.closest('tr');
   row.style.opacity = '.4';
   try {
-    const r = await fetch(API + '/notify/product/' + productId, {method:'DELETE'});
+    const r = await apiFetch('/notify/product/' + productId, {method:'DELETE'});
     const d = await r.json();
     row.style.opacity = '1';
     if (d.ok) {
@@ -425,7 +444,7 @@ async function checkStock() {
   const btn = document.getElementById('btn-check');
   btn.disabled = true; btn.textContent = '⏳ Verificando…';
   try {
-    const r = await fetch(API + '/notify/check-stock', {method:'POST'});
+    const r = await apiFetch('/notify/check-stock', {method:'POST'});
     const d = await r.json();
     if (d.ok) {
       if (d.enviados > 0) {
