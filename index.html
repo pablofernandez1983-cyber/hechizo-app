@@ -298,8 +298,24 @@
   </div>
 
 <script>
-  const API_KEY       = "AIzaSyDPSPGFE6NGthBfEJtWIEnZ-LxcKJJFZjI";
-  const SHEET_ID      = "1nUWfj9u0y7M7n2fNG6v55WnIxAedPpBxQZFUXk28nlI";
+  // Todo lo del servidor exige la clave del reporte web (la misma de web.html y la 🔔,
+  // compartida por localStorage). Si falta o es incorrecta, se pide una vez.
+  const RAILWAY_URL = "https://hechizo-reporte-nuevo-production.up.railway.app";
+  const KEY_STORAGE = "hechizo_web_key";
+  let claveWeb = (() => { try { return localStorage.getItem(KEY_STORAGE) || ""; } catch (e) { return ""; } })();
+  function guardarClave(v) { try { v ? localStorage.setItem(KEY_STORAGE, v) : localStorage.removeItem(KEY_STORAGE); } catch (e) {} }
+  async function fetchConClave(url, opts = {}) {
+    for (let intento = 0; intento < 2; intento++) {
+      if (!claveWeb) {
+        claveWeb = (prompt("Clave del reporte:") || "").trim();
+        if (!claveWeb) throw new Error("Falta la clave");
+      }
+      const res = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), "X-Web-Key": claveWeb } });
+      if (res.status !== 401) { guardarClave(claveWeb); return res; }
+      claveWeb = ""; guardarClave(null);
+    }
+    throw new Error("Clave incorrecta");
+  }
   const SHEET_NAME    = String(new Date().getFullYear());
   const VENTAS_URL     = "https://hechizo-ventas-service-production.up.railway.app/ventas";
   const VENTAS_MES_URL = "https://hechizo-ventas-service-production.up.railway.app/ventas/mes";
@@ -421,8 +437,8 @@
 
     try {
       const range = encodeURIComponent(STATUS_RANGE);
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&t=${Date.now()}`;
-      const res = await fetch(url, { cache: "no-store" });
+      const url = `${RAILWAY_URL}/sheet-values?range=${range}&t=${Date.now()}`;
+      const res = await fetchConClave(url, { cache: "no-store" });
       if (!res.ok) return null;
       const json = await res.json();
       const valor = json.values?.[0]?.[0] || null;
@@ -584,7 +600,7 @@
 
   async function fetchRangoEst(desde, hasta, gran) {
     const url = `${RAILWAY_URL}/historico-rango?desde=${estISO(desde)}&hasta=${estISO(hasta)}&granularidad=${gran}&t=${Date.now()}`;
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetchConClave(url, { cache: "no-store" });
     if (!res.ok) throw new Error("Error " + res.status);
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || "Error historico-rango");
@@ -1093,8 +1109,8 @@
         // Supabase y TiendaNube arrancan juntos pero se procesan independientemente.
         // Supabase (rápido) no espera a TiendaNube (lento/colgado).
         const [histRes, mensualRes] = await Promise.all([
-          fetch(`${RAILWAY_URL}/historico?t=${Date.now()}`, { cache: "no-store" }),
-          fetch(`${RAILWAY_URL}/historico-mensual?t=${Date.now()}`, { cache: "no-store" }),
+          fetchConClave(`${RAILWAY_URL}/historico?t=${Date.now()}`, { cache: "no-store" }),
+          fetchConClave(`${RAILWAY_URL}/historico-mensual?t=${Date.now()}`, { cache: "no-store" }),
         ]);
         if (!histRes.ok) throw new Error("Error historico " + histRes.status);
         const histJson = await histRes.json();
@@ -1263,7 +1279,6 @@
     await cargarVentas({ silent: true, mostrarSpinner: false });
   }
 
-  const RAILWAY_URL = "https://hechizo-reporte-nuevo-production.up.railway.app";
 
   // ── Stock tab ────────────────────────────────────────────────────────────
   let _stockData = null;
@@ -1310,7 +1325,7 @@
       el.innerHTML = '<div style="color:var(--muted);padding:20px 0">Cargando stock...</div>';
     }
     try {
-      const res = await fetch(RAILWAY_URL + "/stock-data?t=" + Date.now(), { cache: "no-store" });
+      const res = await fetchConClave(RAILWAY_URL + "/stock-data?t=" + Date.now(), { cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const d = await res.json();
       if (!d.ok) throw new Error(d.error || "Error del servidor");
@@ -1329,7 +1344,7 @@
     const origText = b ? b.textContent : "";
     if (b) { b.disabled = true; b.textContent = "↻ Actualizando..."; }
     try {
-      const res = await fetch(RAILWAY_URL + "/stock-data?t=" + Date.now(), { cache: "no-store" });
+      const res = await fetchConClave(RAILWAY_URL + "/stock-data?t=" + Date.now(), { cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const d = await res.json();
       if (!d.ok) throw new Error(d.error || "Error del servidor");
@@ -1621,7 +1636,7 @@
     if (warnEl) warnEl.style.display = "none";
 
     try {
-      const res = await fetch(`${RAILWAY_URL}/ejecutar`, {
+      const res = await fetchConClave(`${RAILWAY_URL}/ejecutar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -1680,7 +1695,7 @@
     const pollLogs = setInterval(async () => {
       if (terminado) { clearInterval(pollLogs); return; }
       try {
-        const res = await fetch(`${RAILWAY_URL}/logs?desde=${logDesde}&t=${Date.now()}`, { cache: "no-store" });
+        const res = await fetchConClave(`${RAILWAY_URL}/logs?desde=${logDesde}&t=${Date.now()}`, { cache: "no-store" });
         const json = await res.json();
         if (json.lineas && json.lineas.length > 0) {
           todasLineas = todasLineas.concat(json.lineas);
@@ -1697,7 +1712,7 @@
     const pollEstado = setInterval(async () => {
       intentos++;
       try {
-        const res = await fetch(`${RAILWAY_URL}/estado?t=${Date.now()}`, { cache: "no-store" });
+        const res = await fetchConClave(`${RAILWAY_URL}/estado?t=${Date.now()}`, { cache: "no-store" });
         const json = await res.json();
 
         if (!json.corriendo && json.resultado === "OK") {
@@ -1742,8 +1757,8 @@
   async function cargarDetalle() {
     try {
       const range = encodeURIComponent(`${SHEET_NAME} detalle`);
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&valueRenderOption=UNFORMATTED_VALUE&t=${Date.now()}`;
-      const res = await fetch(url, { cache: "no-store" });
+      const url = `${RAILWAY_URL}/sheet-values?range=${range}&valueRenderOption=UNFORMATTED_VALUE&t=${Date.now()}`;
+      const res = await fetchConClave(url, { cache: "no-store" });
       if (!res.ok) return;
       const json = await res.json();
       const rows = json.values;
@@ -1775,9 +1790,9 @@
     show("screen-loading");
     try {
       const range = encodeURIComponent(SHEET_NAME);
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}&valueRenderOption=UNFORMATTED_VALUE&t=${Date.now()}`;
+      const url = `${RAILWAY_URL}/sheet-values?range=${range}&valueRenderOption=UNFORMATTED_VALUE&t=${Date.now()}`;
       const [res, fechaGeneral] = await Promise.all([
-        fetch(url, { cache: "no-store" }),
+        fetchConClave(url, { cache: "no-store" }),
         obtenerFechaGeneral(true),
       ]);
       if (!res.ok) throw new Error("Error " + res.status);
@@ -2127,7 +2142,7 @@
 
   async function chequearTokens() {
     try {
-      const res = await fetch(`${RAILWAY_URL}/tokens?t=${Date.now()}`, { cache: "no-store" });
+      const res = await fetchConClave(`${RAILWAY_URL}/tokens?t=${Date.now()}`, { cache: "no-store" });
       const json = await res.json();
       const banner = document.getElementById("token-warn-banner");
       const alertas = (json.tokens || []).filter(t => t.dias_restantes !== null && t.dias_restantes <= 3 && t.dias_restantes >= 0);
