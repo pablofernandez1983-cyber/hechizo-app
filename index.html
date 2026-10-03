@@ -79,6 +79,18 @@
     .nav { display:flex; border-bottom:1px solid var(--border); margin: 16px 20px 0; gap: 0; position:sticky; top:calc(env(safe-area-inset-top,0px) + 68px); z-index:9; background:var(--bg); }
     .nav-tab { flex:1; padding:10px; text-align:center; font-size:13px; color:var(--muted); border-bottom:2px solid transparent; cursor:pointer; transition:all .2s; -webkit-tap-highlight-color:transparent; background:transparent; border-top:none; border-left:none; border-right:none; font-family:"DM Sans",sans-serif; }
     .nav-tab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:500; }
+    .rec-wrap { padding:12px 20px 0; display:flex; flex-direction:column; gap:8px; }
+    .rec-wrap:empty { display:none; }
+    .rec-card { background:var(--card); border:1px solid var(--accent); border-radius:16px; padding:12px 14px; }
+    .rec-titulo { font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:var(--accent); margin-bottom:4px; }
+    .rec-pregunta { font-size:14px; color:var(--text); margin-bottom:8px; }
+    .rec-nota { font-size:11px; color:var(--muted); margin:-4px 0 8px; }
+    .rec-fila { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+    .rec-fila input { flex:1; min-width:110px; background:transparent; border:1px solid var(--border); border-radius:10px; padding:7px 10px; color:var(--text); font-size:14px; font-family:inherit; }
+    .rec-btn { border:none; border-radius:10px; padding:8px 12px; font-size:13px; cursor:pointer; font-family:inherit; }
+    .rec-ok { background:var(--accent); color:#fff; }
+    .rec-no { background:transparent; color:var(--muted); border:1px solid var(--border); }
+    .rec-btn:disabled { opacity:.5; }
     .ventas-screen { flex:1; padding:20px; display:flex; flex-direction:column; gap:12px; }
     .ventas-hero { background:linear-gradient(135deg,#0d3320 0%,#0a2218 100%); border:1px solid rgba(52,211,153,.15); border-radius:20px; padding:20px; position:relative; overflow:hidden; }
     .ventas-hero::before { content:""; position:absolute; top:-40px; right:-40px; width:140px; height:140px; border-radius:50%; background:radial-gradient(circle,rgba(52,211,153,.15) 0%,transparent 70%); }
@@ -152,6 +164,7 @@
       <div class="brand-sub">Reporte de Negocios</div>
     </header>
     <div id="token-warn-banner" style="display:none;background:#92400e;color:#fef3c7;font-size:12px;padding:6px 16px;text-align:center;"></div>
+    <div id="recurrentes" class="rec-wrap"></div>
     <nav class="nav">
       <button class="nav-tab active" id="nav-ventas" onclick="switchTab('ventas')">Ventas</button>
       <button class="nav-tab" id="nav-resultados" onclick="switchTab('resultados')">Resultados</button>
@@ -2166,6 +2179,68 @@
     } catch (e) { /* silencioso */ }
   }
 
+  // Gastos fijos del mes (sueldo Juli, agencia, aguinaldo, abono TN si no se leyó solo):
+  // una tarjeta por cada uno que todavía no tenga su fila en el Sheet de gastos.
+  async function chequearRecurrentes() {
+    const cont = document.getElementById("recurrentes");
+    try {
+      const r = await fetchConClave(`${RAILWAY_URL}/recurrentes?t=${Date.now()}`, { cache: "no-store" });
+      const j = await r.json();
+      if (!j.ok) return;
+      cont.innerHTML = "";
+      j.pendientes.forEach(p => cont.appendChild(tarjetaRecurrente(j.mes, p)));
+    } catch (e) { /* silencioso */ }
+  }
+
+  function tarjetaRecurrente(mes, p) {
+    const card = document.createElement("div");
+    card.className = "rec-card";
+    const monto = p.sugerido != null ? fmt(p.sugerido) : null;
+    const pregunta = monto
+      ? `¿${p.label} ${monto}${p.referencia ? " (" + p.referencia + ")" : ""}?`
+      : `¿Cuánto es ${p.label} este mes?`;
+    card.innerHTML = `
+      <div class="rec-titulo">${mes}</div>
+      <div class="rec-pregunta"></div>
+      ${p.nota ? '<div class="rec-nota"></div>' : ""}
+      <div class="rec-fila">
+        <input type="text" inputmode="numeric">
+        <button class="rec-btn rec-ok">Grabar</button>
+        <button class="rec-btn rec-no">Este mes no</button>
+      </div>`;
+    card.querySelector(".rec-pregunta").textContent = pregunta;
+    if (p.nota) card.querySelector(".rec-nota").textContent = p.nota;
+    const input = card.querySelector("input");
+    if (p.sugerido != null) input.value = Math.round(p.sugerido).toLocaleString("es-AR");
+    const [ok, no] = card.querySelectorAll("button");
+    const enviar = async (body) => {
+      ok.disabled = no.disabled = true;
+      try {
+        const r = await fetchConClave(`${RAILWAY_URL}/recurrentes/confirmar`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: p.id, ...body }),
+        });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || "Error");
+        card.innerHTML = `<div class="rec-pregunta" style="margin:0"></div>`;
+        card.firstChild.textContent = body.omitir
+          ? `${p.label}: este mes no se carga.`
+          : `✓ ${p.label} grabado. Entra en Resultados la próxima vez que se actualice el reporte.`;
+        setTimeout(() => card.remove(), 4000);
+      } catch (e) {
+        ok.disabled = no.disabled = false;
+        alert("No se pudo grabar: " + e.message);
+      }
+    };
+    ok.onclick = () => {
+      const importe = Number(input.value.replace(/\./g, "").replace(",", "."));
+      if (!(importe > 0)) { input.focus(); return; }
+      enviar({ importe });
+    };
+    no.onclick = () => enviar({ omitir: true });
+    return card;
+  }
+
   async function despertarServidor() {
     const txt = document.getElementById("loading-text");
     let mostroMensaje = false;
@@ -2189,6 +2264,7 @@
     cargarDatos();
     leerVentasSheet();
     chequearTokens();
+    chequearRecurrentes();
   });
 </script>
 </body>
