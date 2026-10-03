@@ -1017,7 +1017,7 @@
     // con /ventas y pisa pendientes_mes cuando llega, sin bloquear nada.
     if (!VENTAS_MES_URL || VENTAS_MES_URL.includes("TU_RAILWAY")) return;
     try {
-      const rr = await fetch(VENTAS_MES_URL + "?t=" + Date.now(), { cache: "no-store" });
+      const rr = await fetchConClave(VENTAS_MES_URL + "?t=" + Date.now(), { cache: "no-store" });
       const rj = rr.ok ? await rr.json() : null;
       if (rj?.ok && ventasData) {
         ventasData.pendientes_mes = rj.pendientes_mes || null;
@@ -1039,7 +1039,7 @@
     btn.disabled = true;
     actualizarPendientesMes();  // en paralelo, no bloquea el botón
     try {
-      const rr = await fetch(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" });
+      const rr = await fetchConClave(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" });
       const rj = rr.ok ? await rr.json() : null;
       if (rj?.ok && rj.hoy && rj.ayer) {
         ventasData.hoy  = rj.hoy;
@@ -1139,7 +1139,7 @@
         // TiendaNube: fire-and-forget — pisa hoy/ayer cuando llega, sin bloquear
         if (VENTAS_URL && !VENTAS_URL.includes("TU_RAILWAY")) {
           actualizarPendientesMes();  // en paralelo, más lento, se pisa cuando llega
-          fetch(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" })
+          fetchConClave(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" })
             .then(rr => rr.ok ? rr.json() : null)
             .then(rj => {
               if (!rj?.ok || !rj.hoy || !rj.ayer || !ventasData) {
