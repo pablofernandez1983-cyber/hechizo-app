@@ -282,6 +282,7 @@ async function loadClientes() {
     const r = await apiFetch('/notify/list');
     const d = await r.json();
     if (d.ok) { _allClientes = d.items; applyFilters(); }
+    else throw new Error(d.error);
   } catch(e) {
     document.getElementById('clientes-body').innerHTML =
       '<tr><td colspan="7" class="empty">Error al cargar datos</td></tr>';
@@ -365,6 +366,7 @@ async function loadProductos() {
     const r = await apiFetch('/notify/products');
     const d = await r.json();
     if (d.ok) { _allProductos = d.items; renderProductos(_allProductos); }
+    else throw new Error(d.error);
   } catch(e) {
     document.getElementById('productos-body').innerHTML =
       '<tr><td colspan="5" class="empty">Error al cargar datos</td></tr>';
