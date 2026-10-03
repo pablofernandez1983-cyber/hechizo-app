@@ -466,7 +466,7 @@ async function checkStock() {
 async function setupWebhook() {
   if (!confirm('¿Re-registrar webhook en Tiendanube?')) return;
   try {
-    const r = await fetch(API + '/tiendanube/setup-webhook');
+    const r = await apiFetch('/tiendanube/setup-webhook');
     const d = await r.json();
     d.ok ? showToast('✓ Webhook registrado') : showToast('Error: ' + JSON.stringify(d.detail||d), true);
   } catch(e) { showToast('Error: ' + e.message, true); }
