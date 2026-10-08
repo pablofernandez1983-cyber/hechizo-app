@@ -886,40 +886,45 @@
     document.getElementById("est-chart-title").textContent = "Evolución — " + estMetricaLabel(estMetrica);
 
     const gran = estData.granularidad;
-    const ultimoPunto = puntosA[puntosA.length - 1];
+    const n = puntosA.length;
+    const ultimoPunto = puntosA[n - 1];
     const esParcial = estEsPeriodoParcial(ultimoPunto.periodo, gran);
     const proyeccion = esParcial ? estProyeccion(ultimoPunto, gran) : null;
     const valorProy = (proyeccion && estMetrica !== "ticket")
       ? (estMetrica === "cantidad" ? proyeccion.cantidad : proyeccion.total)
       : null;
-    // Fracción del período ya transcurrida — define dónde el tramo hacia el punto en
-    // curso pasa de sólido (transcurrido) a punteado (estimado).
-    const fraccionTranscurrida = proyeccion ? proyeccion.fraccion : 0.5;
 
     const valoresA = puntosA.map(p => estValorPunto(p, estMetrica));
     const valoresC = puntosC ? puntosC.map(p => estValorPunto(p, estMetrica)) : [];
+    const hayC = valoresC.length === n;
 
-    // El punto en curso se posiciona en la altura estimada de cierre (no en el valor
-    // parcial de hoy), para no mostrar una caída artificial — el tramo que llega hasta
-    // ahí se dibuja mitad sólido / mitad punteado más abajo.
-    const conProyeccion = esParcial && valorProy !== null && valoresA.length >= 2;
-    const valoresAVis = conProyeccion
-      ? valoresA.map((v, i) => (i === valoresA.length - 1 ? valorProy : v))
-      : valoresA;
+    // Período en curso: se abre en DOS puntos separados, cada uno seleccionable:
+    //  - "parcial": lo real hasta hoy (ej. 1-8 oct), y el año pasado en los mismos días
+    //  - "cierre":  el período completo, proyección de este año vs cierre real del año pasado
+    // La curva une los períodos cerrados con el "cierre"; el "parcial" queda como punto suelto
+    // (unirlo a la curva dibujaría una caída falsa: 8 días contra meses enteros).
+    const dividir = esParcial && valorProy !== null && n >= 2;
+    const cmpCompleto = dividir && hayC ? estData.cmpUltimoCompleto : null;
+    const fmtDM = d => `${d.getDate()}/${d.getMonth() + 1}`;
 
-    // Con "año anterior" el último punto de comparación cubre solo los mismos días
-    // (ej. 1-8 oct). Si el actual se muestra proyectado a mes completo, la línea de
-    // comparación termina en el cierre REAL de ese período del año pasado; los dos
-    // valores "a la misma fecha" (actual y año pasado) se marcan aparte como puntos.
-    const cmpCompleto = estData.cmpUltimoCompleto;
-    const cmpConCierre = conProyeccion && cmpCompleto && valoresC.length === valoresA.length;
-    const valoresCVis = cmpConCierre
-      ? valoresC.map((v, i) => (i === valoresC.length - 1 ? estValorPunto(cmpCompleto, estMetrica) : v))
-      : valoresC;
-    const parcialA = conProyeccion ? valoresA[valoresA.length - 1] : null;
-    const parcialC = cmpConCierre ? valoresC[valoresC.length - 1] : null;
+    const slots = [];
+    const nCerrados = dividir ? n - 1 : n;
+    for (let i = 0; i < nCerrados; i++) {
+      slots.push({ tipo: "normal", i, a: valoresA[i], c: hayC ? valoresC[i] : null,
+                   label: estFmtPeriodoCorto(puntosA[i].periodo, gran) });
+    }
+    if (dividir) {
+      slots.push({ tipo: "parcial", i: n - 1, a: valoresA[n - 1], c: hayC ? valoresC[n - 1] : null,
+                   label: fmtDM(estData.hasta) });
+      slots.push({ tipo: "cierre", i: n - 1, a: valorProy,
+                   c: cmpCompleto ? estValorPunto(cmpCompleto, estMetrica) : null,
+                   label: estFmtPeriodoCorto(ultimoPunto.periodo, gran) });
+    }
+    const nS = slots.length;
+    const iParcial = dividir ? nS - 2 : -1;
 
-    const maxV = Math.max(...valoresAVis, ...valoresCVis, 1);
+    const valoresTodos = slots.flatMap(s => [s.a, s.c]).filter(v => v !== null);
+    const maxV = Math.max(...valoresTodos, 1);
 
     const isLight = document.body.classList.contains("light");
     const colorA = isLight ? "#7c3aed" : "#c084fc";
@@ -930,11 +935,9 @@
     // W responsive al ancho real del contenedor — evita el letterboxing del viewBox fijo
     const W = Math.max(container.clientWidth || 320, 200), H = 170, PL = 46, PR = 8, PT = 8, PB = 22;
     const cW = W - PL - PR, cH = H - PT - PB;
-    const n = valoresAVis.length;
-    const step = n > 1 ? cW / (n - 1) : 0;
-    const aPunto = (v, i) => ({ x: PL + i * step, y: PT + cH - (v / maxV) * cH });
-    const serieA = valoresAVis.map(aPunto);
-    const serieC = valoresCVis.length ? valoresCVis.map(aPunto) : null;
+    const step = nS > 1 ? cW / (nS - 1) : 0;
+    const xDe = k => PL + k * step;
+    const yDe = v => PT + cH - (v / maxV) * cH;
 
     let svg = "";
     for (let i = 0; i <= 4; i++) {
@@ -947,79 +950,72 @@
       svg += `<text x="${PL - 4}" y="${(y + 3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="${tick}" font-family="DM Sans,sans-serif">${lbl}</text>`;
     }
 
-    // Si el último punto es una proyección, la curva suave solo se traza hasta el
-    // penúltimo (cerrado); el tramo final se agrega aparte, dividido sólido/punteado.
-    const serieACerrada = conProyeccion ? serieA.slice(0, n - 1) : serieA;
-    const curvaCerrada = estPathSuave(serieACerrada);
+    // Serie actual: curva suave por los cerrados; el tramo al cierre proyectado, punteado.
+    const ptsCerradosA = slots.slice(0, nCerrados).map((s, k) => ({ x: xDe(k), y: yDe(s.a) }));
+    const curvaCerrada = estPathSuave(ptsCerradosA);
     let curvaCompleta = curvaCerrada;
-    if (conProyeccion) {
-      const pProy = serieA[n - 1];
-      curvaCompleta += ` L ${pProy.x.toFixed(2)} ${pProy.y.toFixed(2)}`;
+    let xFinArea = ptsCerradosA[ptsCerradosA.length - 1].x;
+    if (dividir) {
+      const pCierre = { x: xDe(nS - 1), y: yDe(valorProy) };
+      curvaCompleta += ` L ${pCierre.x.toFixed(2)} ${pCierre.y.toFixed(2)}`;
+      xFinArea = pCierre.x;
     }
-
-    const area = `${curvaCompleta} L ${serieA[n - 1].x.toFixed(2)} ${(H - PB).toFixed(2)} L ${serieA[0].x.toFixed(2)} ${(H - PB).toFixed(2)} Z`;
+    const area = `${curvaCompleta} L ${xFinArea.toFixed(2)} ${(H - PB).toFixed(2)} L ${PL.toFixed(2)} ${(H - PB).toFixed(2)} Z`;
     svg += `<path d="${area}" fill="${colorA}" opacity="0.12" stroke="none"/>`;
     svg += `<path d="${curvaCerrada}" fill="none" stroke="${colorA}" stroke-width="2"/>`;
-    if (serieC) {
-      svg += `<path d="${estPathSuave(serieC)}" fill="none" stroke="${colorC}" stroke-width="1.6" stroke-dasharray="4,3"/>`;
+    if (dividir) {
+      const pPrev = ptsCerradosA[ptsCerradosA.length - 1];
+      svg += `<line x1="${pPrev.x.toFixed(1)}" y1="${pPrev.y.toFixed(1)}" x2="${xDe(nS - 1).toFixed(1)}" y2="${yDe(valorProy).toFixed(1)}" stroke="${colorA}" stroke-width="2" stroke-dasharray="1,3.2" stroke-linecap="round"/>`;
     }
 
-    // Tramo hacia el punto en curso: la porción de tiempo ya transcurrida se dibuja
-    // sólida (continúa la curva), el resto punteado hasta la altura estimada de cierre.
-    // Patrón de punteado distinto al de la línea de comparación ("4,3") para no confundirlos.
-    if (conProyeccion) {
-      const pPrev = serieA[n - 2], pProy = serieA[n - 1];
-      const mid = {
-        x: pPrev.x + fraccionTranscurrida * (pProy.x - pPrev.x),
-        y: pPrev.y + fraccionTranscurrida * (pProy.y - pPrev.y),
-      };
-      svg += `<line x1="${pPrev.x.toFixed(1)}" y1="${pPrev.y.toFixed(1)}" x2="${mid.x.toFixed(1)}" y2="${mid.y.toFixed(1)}" stroke="${colorA}" stroke-width="2"/>`;
-      svg += `<line x1="${mid.x.toFixed(1)}" y1="${mid.y.toFixed(1)}" x2="${pProy.x.toFixed(1)}" y2="${pProy.y.toFixed(1)}" stroke="${colorA}" stroke-width="2" stroke-dasharray="1,3.2" stroke-linecap="round"/>`;
+    // Serie de comparación: por los cerrados y, si se conoce, el cierre real del período.
+    if (hayC) {
+      const ptsC = slots.map((s, k) => ({ k, s }))
+        .filter(({ s }) => s.tipo === "normal" || (s.tipo === "cierre" && s.c !== null))
+        .map(({ k, s }) => ({ x: xDe(k), y: yDe(s.c) }));
+      svg += `<path d="${estPathSuave(ptsC)}" fill="none" stroke="${colorC}" stroke-width="1.6" stroke-dasharray="4,3"/>`;
     }
 
-    // Puntos "a la misma fecha" (datos reales, sin proyectar) sobre el último período:
-    // relleno = este año hasta hoy, hueco = año pasado hasta la misma fecha.
-    if (conProyeccion && estMetrica !== "ticket") {
-      const xU = serieA[n - 1].x;
-      const yDe = v => PT + cH - (v / maxV) * cH;
-      const lblCorto = v => estMetrica === "cantidad" ? String(Math.round(v))
-        : v >= 1000000 ? "$" + (v / 1000000).toFixed(1) + "M" : "$" + Math.round(v / 1000) + "K";
-      if (parcialC !== null) {
-        svg += `<circle cx="${xU.toFixed(1)}" cy="${yDe(parcialC).toFixed(1)}" r="2.6" fill="none" stroke="${colorC}" stroke-width="1.4"/>`;
-        svg += `<text x="${(xU - 5).toFixed(1)}" y="${(yDe(parcialC) + 3).toFixed(1)}" text-anchor="end" font-size="8.5" fill="${colorC}" font-family="DM Sans,sans-serif">${lblCorto(parcialC)}</text>`;
-      }
-      svg += `<circle cx="${xU.toFixed(1)}" cy="${yDe(parcialA).toFixed(1)}" r="2.6" fill="${colorA}"/>`;
-      svg += `<text x="${(xU - 5).toFixed(1)}" y="${(yDe(parcialA) + 3).toFixed(1)}" text-anchor="end" font-size="8.5" fill="${colorA}" font-family="DM Sans,sans-serif">${lblCorto(parcialA)}</text>`;
-    }
-
-    const labelEvery = Math.max(1, Math.ceil(n / 6));
-    puntosA.forEach((p, i) => {
-      if (i % labelEvery === 0 || i === n - 1) {
-        svg += `<text x="${serieA[i].x.toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="9" fill="${tick}" font-family="DM Sans,sans-serif">${estFmtPeriodoCorto(p.periodo, gran)}</text>`;
+    // Etiquetas del eje X: el parcial y el último siempre; los demás espaciados, sin
+    // pisar a los vecinos del parcial.
+    const labelEvery = Math.max(1, Math.ceil(nS / 6));
+    slots.forEach((s, k) => {
+      const forzada = k === nS - 1 || k === iParcial;
+      const pegada = iParcial >= 0 && Math.abs(k - iParcial) === 1 && k !== nS - 1;
+      if (forzada || (k % labelEvery === 0 && !pegada)) {
+        svg += `<text x="${xDe(k).toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="9" fill="${tick}" font-family="DM Sans,sans-serif">${s.label}</text>`;
       }
     });
 
-    // Puntos clickeables (una banda invisible por período, mismo patrón que selectBar)
-    puntosA.forEach((p, i) => {
-      const x0 = i === 0 ? PL : (serieA[i - 1].x + serieA[i].x) / 2;
-      const x1 = i === n - 1 ? W - PR : (serieA[i].x + serieA[i + 1].x) / 2;
-      const sel = i === estSeleccionIdx;
-      svg += `<circle cx="${serieA[i].x.toFixed(1)}" cy="${serieA[i].y.toFixed(1)}" r="${sel ? 3.5 : 2}" fill="${sel ? colorA : "transparent"}" stroke="${colorA}" stroke-width="${sel ? 0 : 1}"/>`;
-      svg += `<rect x="${x0.toFixed(1)}" y="${PT}" width="${(x1 - x0).toFixed(1)}" height="${cH}" fill="transparent" style="cursor:pointer" onclick="estSeleccionarPunto(${i})"/>`;
+    // Puntos + bandas clickeables (una por slot)
+    slots.forEach((s, k) => {
+      const x = xDe(k);
+      const x0 = k === 0 ? PL : (xDe(k - 1) + x) / 2;
+      const x1 = k === nS - 1 ? W - PR : (x + xDe(k + 1)) / 2;
+      const sel = k === estSeleccionIdx;
+      if (s.tipo === "parcial") {
+        if (s.c !== null) svg += `<circle cx="${x.toFixed(1)}" cy="${yDe(s.c).toFixed(1)}" r="${sel ? 3.5 : 2.6}" fill="none" stroke="${colorC}" stroke-width="1.4"/>`;
+        svg += `<circle cx="${x.toFixed(1)}" cy="${yDe(s.a).toFixed(1)}" r="${sel ? 3.5 : 2.6}" fill="${colorA}"/>`;
+      } else {
+        svg += `<circle cx="${x.toFixed(1)}" cy="${yDe(s.a).toFixed(1)}" r="${sel ? 3.5 : 2}" fill="${sel ? colorA : "transparent"}" stroke="${colorA}" stroke-width="${sel ? 0 : 1}"/>`;
+        if (sel && s.c !== null) {
+          svg += `<circle cx="${x.toFixed(1)}" cy="${yDe(s.c).toFixed(1)}" r="2.6" fill="none" stroke="${colorC}" stroke-width="1.4"/>`;
+        }
+      }
+      svg += `<rect x="${x0.toFixed(1)}" y="${PT}" width="${(x1 - x0).toFixed(1)}" height="${cH}" fill="transparent" style="cursor:pointer" onclick="estSeleccionarPunto(${k})"/>`;
     });
 
     container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" style="display:block;overflow:visible">${svg}</svg>`;
-    estChartCache = { puntosA, puntosC, esParcial, proyeccion, cmpCompleto: cmpConCierre ? cmpCompleto : null };
+    estChartCache = { puntosA, puntosC, slots, esParcial, proyeccion, cmpCompleto };
 
     const info = document.getElementById("est-chart-info");
-    if (estSeleccionIdx !== null && estChartCache.puntosA[estSeleccionIdx]) {
+    if (estSeleccionIdx !== null && slots[estSeleccionIdx]) {
       estMostrarInfoPunto(estSeleccionIdx);
     } else if (info) {
       if (esParcial) {
         const etiqueta = estFmtPeriodoCorto(ultimoPunto.periodo, gran);
-        const valorReal = estValorPunto(ultimoPunto, estMetrica);
         info.innerHTML = valorProy !== null
-          ? `<span style="opacity:.75">• ${etiqueta}: ${estFmtValor(estMetrica, valorReal)} hasta ahora — línea punteada = proyección de cierre ≈ ${estFmtValor(estMetrica, valorProy)}</span>`
+          ? `<span style="opacity:.75">• ${etiqueta}: ${estFmtValor(estMetrica, valoresA[n - 1])} al ${fmtDM(estData.hasta)} — punteado = proyección de cierre ≈ ${estFmtValor(estMetrica, valorProy)}</span>`
           : `<span style="opacity:.75">• ${etiqueta} en curso — datos parciales</span>`;
       } else {
         info.textContent = "";
@@ -1032,30 +1028,59 @@
     estRenderChart();
   }
 
-  function estMostrarInfoPunto(i) {
+  function estMostrarInfoPunto(k) {
     const info = document.getElementById("est-chart-info");
     if (!info || !estChartCache) return;
-    const pA = estChartCache.puntosA[i];
-    const pC = estChartCache.puntosC ? estChartCache.puntosC[i] : null;
-    const valA = estValorPunto(pA, estMetrica);
-    const sufijoA = estMetrica === "cantidad" ? " pedido" + (pA.cantidad !== 1 ? "s" : "") : ` · ${pA.cantidad} pedido${pA.cantidad !== 1 ? "s" : ""}`;
-    let html = `<strong style="color:var(--text)">${estFmtPeriodoCorto(pA.periodo, estData.granularidad)}</strong> &nbsp;${estFmtValor(estMetrica, valA)}${sufijoA}`;
-    const esUltimoParcial = i === estChartCache.puntosA.length - 1 && estChartCache.esParcial;
-    const valorProy = esUltimoParcial && estMetrica !== "ticket" && estChartCache.proyeccion
-      ? (estMetrica === "cantidad" ? estChartCache.proyeccion.cantidad : estChartCache.proyeccion.total)
-      : null;
-    const alHoy = esUltimoParcial ? ` al ${estData.hasta.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}` : "";
-    html += alHoy;
-    if (valorProy !== null) html += ` · proyección ≈ ${estFmtValor(estMetrica, valorProy)}`;
-    if (pC) {
-      const valC = estValorPunto(pC, estMetrica);
-      const cierre = esUltimoParcial && estChartCache.cmpCompleto
-        ? ` · cerró en ${estFmtValor(estMetrica, estValorPunto(estChartCache.cmpCompleto, estMetrica))}`
-        : "";
-      html += `<br><span style="opacity:.75">vs ${estFmtPeriodoCorto(pC.periodo, estData.granularidad)}: ${estFmtValor(estMetrica, valC)}${alHoy}${cierre}</span>`;
-    }
-    if (esUltimoParcial && valorProy === null) {
-      html += `<br><span style="opacity:.75">• período en curso — datos parciales</span>`;
+    const s = estChartCache.slots[k];
+    if (!s) return;
+    const gran = estData.granularidad;
+    const pA = estChartCache.puntosA[s.i];
+    const pC = estChartCache.puntosC ? estChartCache.puntosC[s.i] : null;
+    const nPed = c => `${c} pedido${c !== 1 ? "s" : ""}`;
+    const fmtDM = d => `${d.getDate()}/${d.getMonth() + 1}`;
+    const varTxt = (a, c) => {
+      if (a === null || c === null || !c) return "";
+      const v = estFmtVariacion(a, c);
+      return ` <span class="${v.cls}">${v.texto}</span>`;
+    };
+    let html;
+    if (s.tipo === "parcial") {
+      const ini = estInicioPeriodo(pA.periodo, gran);
+      html = `<strong style="color:var(--text)">${fmtDM(ini)} al ${fmtDM(estData.hasta)}</strong> &nbsp;`
+        + (estMetrica === "cantidad" ? nPed(pA.cantidad) : `${estFmtValor(estMetrica, s.a)} · ${nPed(pA.cantidad)}`)
+        + ` <span style="opacity:.75">(real)</span>`;
+      if (pC) {
+        const anioAnt = document.getElementById("est-comparacion-select").value === "anio_anterior";
+        let lblC = estFmtPeriodoCorto(pC.periodo, gran);
+        if (anioAnt) {
+          const iniC = estInicioPeriodo(pC.periodo, gran);
+          const finC = new Date(estData.hasta); finC.setFullYear(finC.getFullYear() - 1);
+          lblC = `${fmtDM(iniC)} al ${fmtDM(finC)} de ${finC.getFullYear()}`;
+        }
+        html += `<br><span style="opacity:.75">vs ${lblC}: `
+          + (estMetrica === "cantidad" ? nPed(pC.cantidad) : `${estFmtValor(estMetrica, s.c)} · ${nPed(pC.cantidad)}`)
+          + `</span>${varTxt(s.a, s.c)}`;
+      }
+    } else if (s.tipo === "cierre") {
+      const cantProy = Math.round(estChartCache.proyeccion.cantidad);
+      html = `<strong style="color:var(--text)">${s.label} completo</strong> &nbsp;≈ `
+        + (estMetrica === "cantidad" ? nPed(cantProy) : `${estFmtValor(estMetrica, s.a)} · ≈ ${nPed(cantProy)}`)
+        + ` <span style="opacity:.75">(proyección al ritmo actual)</span>`;
+      if (estChartCache.cmpCompleto) {
+        const cc = estChartCache.cmpCompleto;
+        html += `<br><span style="opacity:.75">vs ${estFmtPeriodoCorto(cc.periodo, gran)} completo: `
+          + (estMetrica === "cantidad" ? nPed(cc.cantidad) : `${estFmtValor(estMetrica, s.c)} · ${nPed(cc.cantidad)}`)
+          + ` (real)</span>${varTxt(s.a, s.c)}`;
+      }
+    } else {
+      const sufijoA = estMetrica === "cantidad" ? " pedido" + (pA.cantidad !== 1 ? "s" : "") : ` · ${nPed(pA.cantidad)}`;
+      html = `<strong style="color:var(--text)">${s.label}</strong> &nbsp;${estFmtValor(estMetrica, s.a)}${sufijoA}`;
+      if (pC) {
+        html += `<br><span style="opacity:.75">vs ${estFmtPeriodoCorto(pC.periodo, gran)}: ${estFmtValor(estMetrica, s.c)}</span>`;
+      }
+      if (s.i === estChartCache.puntosA.length - 1 && estChartCache.esParcial) {
+        html += `<br><span style="opacity:.75">• período en curso — datos parciales</span>`;
+      }
     }
     info.innerHTML = html;
   }
