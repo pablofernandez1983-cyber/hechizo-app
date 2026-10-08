@@ -893,7 +893,17 @@
       ? valoresA.map((v, i) => (i === valoresA.length - 1 ? valorProy : v))
       : valoresA;
 
-    const maxV = Math.max(...valoresAVis, ...valoresC, 1);
+    // Con "año anterior" el último punto de comparación también cubre solo los mismos
+    // días transcurridos (ej. 1-8 oct). Si el actual se muestra proyectado a mes completo,
+    // la comparación se proyecta con el mismo factor — si no, la línea punteada se
+    // desploma en el último punto y compara un mes entero contra 8 días.
+    const cmpProyectada = conProyeccion && valoresC.length === valoresA.length
+      && document.getElementById("est-comparacion-select").value === "anio_anterior";
+    const valoresCVis = cmpProyectada
+      ? valoresC.map((v, i) => (i === valoresC.length - 1 ? v / fraccionTranscurrida : v))
+      : valoresC;
+
+    const maxV = Math.max(...valoresAVis, ...valoresCVis, 1);
 
     const isLight = document.body.classList.contains("light");
     const colorA = isLight ? "#7c3aed" : "#c084fc";
@@ -908,7 +918,7 @@
     const step = n > 1 ? cW / (n - 1) : 0;
     const aPunto = (v, i) => ({ x: PL + i * step, y: PT + cH - (v / maxV) * cH });
     const serieA = valoresAVis.map(aPunto);
-    const serieC = valoresC.length ? valoresC.map(aPunto) : null;
+    const serieC = valoresCVis.length ? valoresCVis.map(aPunto) : null;
 
     let svg = "";
     for (let i = 0; i <= 4; i++) {
@@ -968,7 +978,7 @@
     });
 
     container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" style="display:block;overflow:visible">${svg}</svg>`;
-    estChartCache = { puntosA, puntosC, esParcial, proyeccion };
+    estChartCache = { puntosA, puntosC, esParcial, proyeccion, cmpProyectada };
 
     const info = document.getElementById("est-chart-info");
     if (estSeleccionIdx !== null && estChartCache.puntosA[estSeleccionIdx]) {
@@ -1001,7 +1011,11 @@
     let html = `<strong style="color:var(--text)">${estFmtPeriodoCorto(pA.periodo, estData.granularidad)}</strong> &nbsp;${estFmtValor(estMetrica, valA)}${sufijoA}`;
     if (pC) {
       const valC = estValorPunto(pC, estMetrica);
-      html += `<br><span style="opacity:.75">vs ${estFmtPeriodoCorto(pC.periodo, estData.granularidad)}: ${estFmtValor(estMetrica, valC)}</span>`;
+      const esUltimoProy = i === estChartCache.puntosA.length - 1 && estChartCache.cmpProyectada && estChartCache.proyeccion;
+      const extraC = esUltimoProy && estMetrica !== "ticket"
+        ? ` en los mismos días (≈ ${estFmtValor(estMetrica, valC / estChartCache.proyeccion.fraccion)} a ese ritmo)`
+        : "";
+      html += `<br><span style="opacity:.75">vs ${estFmtPeriodoCorto(pC.periodo, estData.granularidad)}: ${estFmtValor(estMetrica, valC)}${extraC}</span>`;
     }
     if (i === estChartCache.puntosA.length - 1 && estChartCache.esParcial) {
       const valorProy = estMetrica !== "ticket" && estChartCache.proyeccion
