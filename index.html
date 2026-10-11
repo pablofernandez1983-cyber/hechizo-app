@@ -222,6 +222,7 @@
             <option value="mes_actual" selected>Mes actual</option>
             <option value="mes_anterior">Mes anterior</option>
             <option value="anio_actual">Año actual</option>
+            <option value="anio_completo">Año completo (proyección)</option>
             <option value="personalizado">Personalizado</option>
           </select>
         </div>
@@ -517,6 +518,8 @@
         return { desde: primerMesAnt, hasta: ultimoMesAnt };
       }
       case "anio_actual": return { desde: new Date(hoy.getFullYear(), 0, 1), hasta: hoy };
+      // Datos reales hasta hoy; de mañana al 31/12 se completa con la proyección (/forecast)
+      case "anio_completo": return { desde: new Date(hoy.getFullYear(), 0, 1), hasta: hoy, hastaProy: new Date(hoy.getFullYear(), 11, 31) };
       case "personalizado": {
         const d = document.getElementById("est-desde-input").value;
         const h = document.getElementById("est-hasta-input").value;
@@ -531,19 +534,20 @@
 
   function calcularRangoComparacionEst(rango, modo) {
     if (!rango || modo === "ninguna") return null;
+    const hastaR = rango.hastaProy || rango.hasta;   // con proyección se compara el período entero
     if (modo === "anio_anterior") {
       const desde = new Date(rango.desde); desde.setFullYear(desde.getFullYear() - 1);
-      const hasta = new Date(rango.hasta); hasta.setFullYear(hasta.getFullYear() - 1);
+      const hasta = new Date(hastaR); hasta.setFullYear(hasta.getFullYear() - 1);
       return { desde, hasta };
     }
-    const dias = Math.round((rango.hasta - rango.desde) / 86400000) + 1;
+    const dias = Math.round((hastaR - rango.desde) / 86400000) + 1;
     const hasta = estSumarDias(rango.desde, -1);
     const desde = estSumarDias(hasta, -(dias - 1));
     return { desde, hasta };
   }
 
   function granularidadAutoEst(rango) {
-    const dias = Math.round((rango.hasta - rango.desde) / 86400000) + 1;
+    const dias = Math.round(((rango.hastaProy || rango.hasta) - rango.desde) / 86400000) + 1;
     if (dias <= 31) return "dia";
     if (dias <= 120) return "semana";
     return "mes";
@@ -642,7 +646,8 @@
       const rangoCmp = calcularRangoComparacionEst(rango, modoCmp);
 
       // Proyección de cierre del período en curso (modelo del backend, ver forecast.py)
-      const pForecast = fetchConClave(`${RAILWAY_URL}/forecast?granularidad=${gran}&t=${Date.now()}`, { cache: "no-store" })
+      const hastaProy = rango.hastaProy ? `&hasta=${estISO(rango.hastaProy)}` : "";
+      const pForecast = fetchConClave(`${RAILWAY_URL}/forecast?granularidad=${gran}${hastaProy}&t=${Date.now()}`, { cache: "no-store" })
         .then(r => r.ok ? r.json() : null).catch(() => null);
       const promesas = [fetchRangoEst(rango.desde, rango.hasta, gran)];
       if (rangoCmp) promesas.push(fetchRangoEst(rangoCmp.desde, rangoCmp.hasta, gran));
@@ -651,6 +656,13 @@
       // El backend omite períodos sin ventas (GROUP BY) — se rellenan con 0 acá
       // para que la serie actual y la de comparación queden alineadas por índice.
       const actualLleno = estRellenarCeros(resultados[0], rango.desde, rango.hasta, gran);
+      const forecast = await pForecast;
+      // "Año completo": después del período en curso van los proyectados (barras punteadas)
+      if (rango.hastaProy && forecast && forecast.ok && forecast.futuros) {
+        const ultimo = actualLleno.length ? actualLleno[actualLleno.length - 1].periodo : "";
+        forecast.futuros.filter(f => f.periodo > ultimo)
+          .forEach(f => actualLleno.push({ periodo: f.periodo, total: f.total, cantidad: f.cantidad, proyectado: true }));
+      }
       const cmpLleno = rangoCmp ? estRellenarCeros(resultados[1], rangoCmp.desde, rangoCmp.hasta, gran) : null;
 
       // Con "año anterior", el último período de comparación queda cortado en la misma
@@ -670,10 +682,12 @@
         actual: actualLleno,
         comparacion: cmpLleno,
         cmpUltimoCompleto,
-        forecast: await pForecast,
+        forecast,
+        anual: !!rango.hastaProy,
         granularidad: gran,
         desde: rango.desde,
         hasta: rango.hasta,
+        hastaProy: rango.hastaProy || null,
         actualizadoEn: new Date().toISOString(),
       };
       renderEstadisticas();
@@ -710,18 +724,45 @@
     el.className = "est-variacion " + v.cls;
   }
 
+  // Índice del último período con datos reales (después pueden venir proyectados)
+  function estIdxActual(puntos) {
+    let i = puntos.length - 1;
+    while (i > 0 && puntos[i].proyectado) i--;
+    return i;
+  }
+
+  // Totales de la serie actual; en "año completo" suma la proyección del período en curso
+  // y los proyectados, así las tarjetas muestran el cierre de año esperado.
+  function estTotalesActual() {
+    const { actual, granularidad: gran } = estData;
+    const s = estSumPuntos(actual);
+    const real = estSumPuntos(actual.filter(p => !p.proyectado));
+    if (estData.anual && actual.length) {
+      const cur = actual[estIdxActual(actual)];
+      const proy = estEsPeriodoParcial(cur.periodo, gran) ? estProyeccion(cur, gran) : null;
+      if (proy) { s.total += proy.total - cur.total; s.cantidad += proy.cantidad - cur.cantidad; }
+    }
+    return { proyectado: s, real };
+  }
+
   function renderEstadisticas() {
     if (!estData) return;
     const { actual, comparacion } = estData;
 
-    const sA = estSumPuntos(actual);
+    const sA = estTotalesActual().proyectado;
     const sC = comparacion ? estSumPuntos(comparacion) : null;
     const ticketA = sA.cantidad > 0 ? sA.total / sA.cantidad : 0;
     const ticketC = sC && sC.cantidad > 0 ? sC.total / sC.cantidad : null;
 
-    document.getElementById("est-ventas").textContent = String(sA.cantidad);
-    document.getElementById("est-facturacion").textContent = fmt(sA.total);
-    document.getElementById("est-ticket").textContent = fmt(ticketA);
+    // En "año completo" son valores proyectados: "≈" chico pegado al número (sin cortar línea)
+    const kpi = (id, txt) => {
+      const el = document.getElementById(id);
+      el.style.whiteSpace = estData.anual ? "nowrap" : "";
+      el.innerHTML = (estData.anual ? '<span style="font-size:.6em;opacity:.7;margin-right:1px">≈</span>' : "") + txt;
+    };
+    kpi("est-ventas", String(Math.round(sA.cantidad)));
+    kpi("est-facturacion", fmt(sA.total));
+    kpi("est-ticket", fmt(ticketA));
 
     estSetVariacion("est-ventas-var", estFmtVariacion(sA.cantidad, sC ? sC.cantidad : null));
     estSetVariacion("est-facturacion-var", estFmtVariacion(sA.total, sC ? sC.total : null));
@@ -732,8 +773,9 @@
     estRenderSparkline("est-ticket-spark", actual, comparacion, "ticket");
 
     const fmtFecha = d => d.toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
-    document.getElementById("est-periodo-label").textContent =
-      `${fmtFecha(estData.desde)} — ${fmtFecha(estData.hasta)}`;
+    document.getElementById("est-periodo-label").textContent = estData.anual
+      ? `${fmtFecha(estData.desde)} — ${fmtFecha(estData.hastaProy)} · real hasta ${fmtFecha(estData.hasta)}, resto proyectado`
+      : `${fmtFecha(estData.desde)} — ${fmtFecha(estData.hasta)}`;
 
     document.getElementById("estadisticas-actualizado").textContent =
       "Datos al " + fmtFechaReal(estData.actualizadoEn);
@@ -888,7 +930,8 @@
 
     const gran = estData.granularidad;
     const n = puntosA.length;
-    const ultimoPunto = puntosA[n - 1];
+    const iCur = estIdxActual(puntosA);   // último período con datos reales
+    const ultimoPunto = puntosA[iCur];
     const esParcial = estEsPeriodoParcial(ultimoPunto.periodo, gran);
     const proyeccion = esParcial ? estProyeccion(ultimoPunto, gran) : null;
     const valorProy = (proyeccion && estMetrica !== "ticket")
@@ -899,10 +942,11 @@
     const valoresC = puntosC ? puntosC.map(p => estValorPunto(p, estMetrica)) : [];
     const hayC = valoresC.length === n;
     // Período en curso: la comparación se marca en su cierre completo si se conoce
-    // (año anterior por semana/mes), así queda frente a la barra proyectada.
-    const cmpCompleto = esParcial && hayC ? estData.cmpUltimoCompleto : null;
+    // (año anterior por semana/mes), así queda frente a la barra proyectada. En "año
+    // completo" la comparación ya trae el período entero.
+    const cmpCompleto = esParcial && hayC ? (estData.anual ? puntosC[iCur] : estData.cmpUltimoCompleto) : null;
     const valoresCDibujo = hayC ? valoresC.slice() : [];
-    if (cmpCompleto) valoresCDibujo[n - 1] = estValorPunto(cmpCompleto, estMetrica);
+    if (cmpCompleto) valoresCDibujo[iCur] = estValorPunto(cmpCompleto, estMetrica);
 
     const maxV = Math.max(...valoresA, ...valoresCDibujo, valorProy || 0, 1);
 
@@ -943,13 +987,14 @@
     };
 
     // Barras del período actual. La del período en curso: lleno = real hasta ahora,
-    // contorno punteado = hasta dónde llegaría según la proyección de cierre.
+    // contorno punteado = hasta dónde llegaría según la proyección de cierre. Los períodos
+    // futuros ("año completo") van sólo con el contorno.
+    const contorno = op => `fill="${colorA}" fill-opacity="0.12" stroke="${colorA}" stroke-width="1" stroke-dasharray="2,2" opacity="${op}"`;
     valoresA.forEach((v, k) => {
       const x = xDe(k);
       const op = estSeleccionIdx === null || k === estSeleccionIdx ? 1 : 0.45;
-      if (k === n - 1 && valorProy !== null && valorProy > v) {
-        svg += barra(x, yDe(valorProy), `fill="${colorA}" fill-opacity="0.12" stroke="${colorA}" stroke-width="1" stroke-dasharray="2,2" opacity="${op}"`);
-      }
+      if (puntosA[k].proyectado) { svg += barra(x, yDe(v), contorno(op)); return; }
+      if (k === iCur && valorProy !== null && valorProy > v) svg += barra(x, yDe(valorProy), contorno(op));
       svg += barra(x, yDe(v), `fill="${colorA}" opacity="${op}"`);
     });
 
@@ -978,7 +1023,7 @@
     });
 
     container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" style="display:block;overflow:visible">${svg}</svg>`;
-    estChartCache = { puntosA, puntosC, valoresA, valoresC, esParcial, proyeccion, valorProy, cmpCompleto };
+    estChartCache = { puntosA, puntosC, valoresA, valoresC, iCur, esParcial, proyeccion, valorProy, cmpCompleto };
 
     const info = document.getElementById("est-chart-info");
     if (estSeleccionIdx !== null && puntosA[estSeleccionIdx]) {
@@ -988,10 +1033,24 @@
       const nombreC = selCmp && selCmp.selectedOptions[0] ? selCmp.selectedOptions[0].textContent.toLowerCase() : "comparación";
       let txt = `<span style="color:${colorA}">■</span> este período`;
       if (hayC) txt += ` &nbsp;<span style="color:${colorC}">- - -</span> ${nombreC}`;
-      if (esParcial) {
+      if (estData.anual) {
+        // Cierre de año: real hasta hoy + proyección del resto
+        const t = estTotalesActual();
+        const sC = hayC ? estSumPuntos(puntosC) : null;
+        const val = x => estMetrica === "ticket" ? (x.cantidad > 0 ? x.total / x.cantidad : 0) : x[estMetrica];
+        const anio = estData.hastaProy.getFullYear();
+        txt += `<br>Cierre ${anio} ≈ <strong style="color:var(--text)">${estFmtValor(estMetrica, val(t.proyectado))}</strong>`;
+        if (sC && val(sC)) {
+          const v = estFmtVariacion(val(t.proyectado), val(sC));
+          txt += ` vs ${estFmtValor(estMetrica, val(sC))} <span class="${v.cls}">${v.texto}</span>`;
+        }
+        if (estMetrica !== "ticket") {
+          txt += `<br>real a hoy ${estFmtValor(estMetrica, val(t.real))} + proyectado ${estFmtValor(estMetrica, val(t.proyectado) - val(t.real))}`;
+        }
+      } else if (esParcial) {
         const etiqueta = estFmtPeriodoCorto(ultimoPunto.periodo, gran);
         txt += valorProy !== null
-          ? `<br>${etiqueta} en curso: ${estFmtValor(estMetrica, valoresA[n - 1])} hasta ahora · contorno = proyección ≈ ${estFmtValor(estMetrica, valorProy)}`
+          ? `<br>${etiqueta} en curso: ${estFmtValor(estMetrica, valoresA[iCur])} hasta ahora · contorno = proyección ≈ ${estFmtValor(estMetrica, valorProy)}`
           : `<br>${etiqueta} en curso — datos parciales`;
       }
       info.innerHTML = `<span style="opacity:.8">${txt}</span>`;
@@ -1022,13 +1081,19 @@
       return ` <span class="${v.cls}">${v.texto}</span>`;
     };
     const label = estFmtPeriodoCorto(pA.periodo, gran);
-    const enCurso = k === c.puntosA.length - 1 && c.esParcial;
+    const enCurso = k === c.iCur && c.esParcial;
     let html;
-    if (enCurso) {
+    if (pA.proyectado) {
+      html = `<strong style="color:var(--text)">${label}</strong> &nbsp;≈ ${valor(vA, Math.round(pA.cantidad))}`
+        + ` <span style="opacity:.75">(proyectado)</span>`;
+      if (pC) {
+        html += `<br><span style="opacity:.75">vs ${estFmtPeriodoCorto(pC.periodo, gran)}: ${valor(vC, pC.cantidad)}</span>${varTxt(vA, vC)}`;
+      }
+    } else if (enCurso) {
       const ini = estInicioPeriodo(pA.periodo, gran);
       const rango = gran === "dia" ? `${label} hasta ahora` : `${fmtDM(ini)} al ${fmtDM(estData.hasta)}`;
       html = `<strong style="color:var(--text)">${rango}</strong> &nbsp;${valor(vA, pA.cantidad)}`;
-      if (pC) {
+      if (pC && !estData.anual) {
         const anioAnt = document.getElementById("est-comparacion-select").value === "anio_anterior";
         let lblC = estFmtPeriodoCorto(pC.periodo, gran);
         if (anioAnt && gran !== "dia") {
