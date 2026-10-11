@@ -256,7 +256,7 @@
         </div>
       </div>
       <div class="est-periodo-label" id="est-periodo-label"></div>
-      <label class="est-real-toggle"><input type="checkbox" id="est-real-check" onchange="onCambioPesosEst()"> Ajustar por inflación (pesos de hoy)</label>
+      <label class="est-real-toggle"><input type="checkbox" id="est-real-check" onchange="onCambioPesosEst()"> Ajustar por inflación Hechizo (pesos de hoy)</label>
 
       <div class="kpi-row" style="grid-template-columns:1fr 1fr 1fr;">
         <div class="kpi-card est-kpi-clickable" id="est-card-cantidad" onclick="estElegirMetrica('cantidad')">
@@ -488,8 +488,10 @@
   }
 
   // ===================== ESTADÍSTICAS =====================
-  // Pesos de hoy: los montos se llevan al nivel de precios del mes actual con el IPC
-  // (/forecast/ipc). estDataRaw = lo que vino del backend; estData = lo que se dibuja.
+  // Pesos de hoy: los montos se llevan al nivel de precios del mes actual con el índice de
+  // precios propio de Hechizo (/forecast/indice-hechizo: mismo producto mes contra mes), no
+  // con el IPC, porque los precios de la tienda siguen a los proveedores y no a los servicios.
+  // estDataRaw = lo que vino del backend; estData = lo que se dibuja.
   let estDataRaw = null;
   let estIpc = null;
   let estPesosHoy = (() => { try { return localStorage.getItem("hechizo_est_pesos_hoy") === "1"; } catch (e) { return false; } })();
@@ -497,10 +499,10 @@
   async function estPrepararIpc() {
     if (!estPesosHoy || estIpc) return;
     try {
-      const r = await fetchConClave(`${RAILWAY_URL}/forecast/ipc`, { cache: "no-store" });
+      const r = await fetchConClave(`${RAILWAY_URL}/forecast/indice-hechizo`, { cache: "no-store" });
       const j = r.ok ? await r.json() : null;
       if (j && j.ok) estIpc = j;
-    } catch (e) { /* sin IPC se muestra nominal */ }
+    } catch (e) { /* sin índice se muestra nominal */ }
   }
 
   function estMesClave(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
@@ -833,8 +835,8 @@
     document.getElementById("est-periodo-label").textContent = (estData.anual
       ? `${fmtFecha(estData.desde)} — ${fmtFecha(estData.hastaProy)} · real hasta ${fmtFecha(estData.hasta)}, resto proyectado`
       : `${fmtFecha(estData.desde)} — ${fmtFecha(estData.hasta)}`)
-      + (estData.pesosHoy ? ` · en pesos de ${meses[hoyL.getMonth()]}-${String(hoyL.getFullYear()).slice(2)}`
-         : estPesosHoy ? " · (IPC no disponible, en pesos nominales)" : "");
+      + (estData.pesosHoy ? ` · en pesos de ${meses[hoyL.getMonth()]}-${String(hoyL.getFullYear()).slice(2)} (inflación Hechizo)`
+         : estPesosHoy ? " · (índice no disponible, en pesos nominales)" : "");
 
     document.getElementById("estadisticas-actualizado").textContent =
       "Datos al " + fmtFechaReal(estData.actualizadoEn);
