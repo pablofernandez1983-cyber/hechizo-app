@@ -125,8 +125,9 @@
     .est-filtro-label { font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
     .est-select, .est-date { padding:7px 9px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); font-size:12px; font-family:"DM Sans",sans-serif; }
     .est-periodo-label { font-size:11px; color:var(--muted); text-align:center; }
-    .est-real-toggle { display:flex; align-items:center; justify-content:center; gap:6px; font-size:11px; color:var(--muted); margin-top:4px; cursor:pointer; }
-    .est-real-toggle input { accent-color:#a855f7; margin:0; }
+    /* AxI (ajuste por inflación Hechizo): activado por defecto; el botón sólo sirve para apagarlo */
+    .est-axi { font-family:"DM Sans",sans-serif; font-size:10px; font-weight:600; letter-spacing:.5px; padding:3px 8px; border-radius:10px; border:1px solid rgba(192,132,252,.35); background:#1a0a2e; color:#c084fc; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .est-axi.off { color:#9d8ec0; border-color:rgba(157,142,192,.25); opacity:.55; text-decoration:line-through; }
     .est-variacion { font-size:12px; margin-top:2px; }
     .est-spark { margin-top:8px; height:32px; }
     .est-kpi-clickable { cursor:pointer; -webkit-tap-highlight-color:transparent; transition:border-color .2s; }
@@ -256,7 +257,6 @@
         </div>
       </div>
       <div class="est-periodo-label" id="est-periodo-label"></div>
-      <label class="est-real-toggle"><input type="checkbox" id="est-real-check" onchange="onCambioPesosEst()"> Ajustar por inflación Hechizo (pesos de hoy)</label>
 
       <div class="kpi-row" style="grid-template-columns:1fr 1fr 1fr;">
         <div class="kpi-card est-kpi-clickable" id="est-card-cantidad" onclick="estElegirMetrica('cantidad')">
@@ -282,6 +282,7 @@
       <div class="chart-wrap" id="est-chart-wrap">
         <div class="chart-header">
           <div class="section-title" id="est-chart-title">Evolución — Facturación</div>
+          <button class="est-axi" id="est-axi-btn" onclick="onCambioPesosEst()" title="Ajuste por inflación Hechizo: montos en pesos de hoy. Tocar para ver pesos nominales.">AxI</button>
         </div>
         <div id="est-chart-svg"></div>
         <div id="est-chart-info" style="min-height:30px;text-align:center;font-size:12px;color:var(--muted);padding:4px 0;"></div>
@@ -494,7 +495,7 @@
   // estDataRaw = lo que vino del backend; estData = lo que se dibuja.
   let estDataRaw = null;
   let estIpc = null;
-  let estPesosHoy = (() => { try { return localStorage.getItem("hechizo_est_pesos_hoy") === "1"; } catch (e) { return false; } })();
+  let estPesosHoy = (() => { try { return localStorage.getItem("hechizo_est_axi") !== "0"; } catch (e) { return true; } })();  // por defecto, ajustado
 
   async function estPrepararIpc() {
     if (!estPesosHoy || estIpc) return;
@@ -532,8 +533,8 @@
   }
 
   async function onCambioPesosEst() {
-    estPesosHoy = document.getElementById("est-real-check").checked;
-    try { localStorage.setItem("hechizo_est_pesos_hoy", estPesosHoy ? "1" : "0"); } catch (e) {}
+    estPesosHoy = !estPesosHoy;
+    try { localStorage.setItem("hechizo_est_axi", estPesosHoy ? "1" : "0"); } catch (e) {}
     await estPrepararIpc();
     estData = estAplicarPesos(estDataRaw);
     renderEstadisticas();
@@ -831,12 +832,16 @@
     const fmtFecha = d => d.toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
     const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
     const hoyL = hoyAR();
-    document.getElementById("est-real-check").checked = estPesosHoy;
+    const axi = document.getElementById("est-axi-btn");
+    axi.classList.toggle("off", !estData.pesosHoy);
+    axi.title = estData.pesosHoy
+      ? "Ajuste por inflación Hechizo: montos en pesos de hoy. Tocar para ver pesos nominales."
+      : "Pesos nominales. Tocar para ajustar por inflación Hechizo.";
     document.getElementById("est-periodo-label").textContent = (estData.anual
       ? `${fmtFecha(estData.desde)} — ${fmtFecha(estData.hastaProy)} · real hasta ${fmtFecha(estData.hasta)}, resto proyectado`
       : `${fmtFecha(estData.desde)} — ${fmtFecha(estData.hasta)}`)
-      + (estData.pesosHoy ? ` · en pesos de ${meses[hoyL.getMonth()]}-${String(hoyL.getFullYear()).slice(2)} (inflación Hechizo)`
-         : estPesosHoy ? " · (índice no disponible, en pesos nominales)" : "");
+      + (estData.pesosHoy ? ` · pesos de ${meses[hoyL.getMonth()]}-${String(hoyL.getFullYear()).slice(2)}`
+         : estPesosHoy ? " · (sin índice de inflación, pesos nominales)" : " · pesos nominales");
 
     document.getElementById("estadisticas-actualizado").textContent =
       "Datos al " + fmtFechaReal(estData.actualizadoEn);
