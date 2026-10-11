@@ -641,6 +641,9 @@
       if (!rango) return;
       const rangoCmp = calcularRangoComparacionEst(rango, modoCmp);
 
+      // Proyección de cierre del período en curso (modelo del backend, ver forecast.py)
+      const pForecast = fetchConClave(`${RAILWAY_URL}/forecast?granularidad=${gran}&t=${Date.now()}`, { cache: "no-store" })
+        .then(r => r.ok ? r.json() : null).catch(() => null);
       const promesas = [fetchRangoEst(rango.desde, rango.hasta, gran)];
       if (rangoCmp) promesas.push(fetchRangoEst(rangoCmp.desde, rangoCmp.hasta, gran));
       const resultados = await Promise.all(promesas);
@@ -667,6 +670,7 @@
         actual: actualLleno,
         comparacion: cmpLleno,
         cmpUltimoCompleto,
+        forecast: await pForecast,
         granularidad: gran,
         desde: rango.desde,
         hasta: rango.hasta,
@@ -863,17 +867,14 @@
     return estAhoraReal() < finExclusivo;
   }
 
-  // Proyección de cierre al ritmo de venta actual (run-rate), válida para día/semana/mes.
-  // Usa milisegundos (no días enteros) para que el día en curso también pueda proyectarse.
+  // Proyección de cierre del período en curso. Sale de /forecast (backend): lo vendido +
+  // lo que normalmente falta vender a esta hora, con base en historia reciente ajustada por
+  // IPC. Si el período empieza antes del rango elegido (barra recortada) no se proyecta.
   function estProyeccion(p, gran) {
-    const inicio = estInicioPeriodo(p.periodo, gran);
-    const finExclusivo = estSumarDias(estFinPeriodo(p.periodo, gran), 1);
-    const msTotales = finExclusivo - inicio;
-    const msTranscurridos = Math.min(estAhoraReal() - inicio, msTotales);
-    if (msTranscurridos <= 0 || msTranscurridos >= msTotales) return null;
-    const fraccion = msTranscurridos / msTotales;
-    const factor = msTotales / msTranscurridos;
-    return { fraccion, total: p.total * factor, cantidad: p.cantidad * factor };
+    const f = estData.forecast;
+    if (!f || !f.ok || f.granularidad !== gran || f.periodo !== p.periodo) return null;
+    if (estInicioPeriodo(p.periodo, gran) < estData.desde) return null;
+    return { total: Math.max(f.total, p.total), cantidad: Math.max(f.cantidad, p.cantidad) };
   }
 
   function estRenderChart() {
