@@ -1541,7 +1541,9 @@
     const origText = b ? b.textContent : "";
     if (b) { b.disabled = true; b.textContent = "↻ Actualizando..."; }
     try {
-      const res = await fetchConClave(RAILWAY_URL + "/stock-data?t=" + Date.now(), { cache: "no-store" });
+      // refresh=1: recalcula en vivo (~25 s). Sin él, el servidor devuelve lo guardado
+      // (se recalcula solo todos los días a las 19 h).
+      const res = await fetchConClave(RAILWAY_URL + "/stock-data?refresh=1&t=" + Date.now(), { cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const d = await res.json();
       if (!d.ok) throw new Error(d.error || "Error del servidor");
