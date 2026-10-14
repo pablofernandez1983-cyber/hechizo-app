@@ -621,12 +621,39 @@
     cargarEstadisticas();
   }
 
+  // Lo último que se vio queda guardado (con el período elegido): al abrir la solapa
+  // se muestra al toque y se actualiza en segundo plano.
+  const STORAGE_EST_KEY = "hechizo_est_cache";
+  const EST_SELECTS = ["est-periodo-select", "est-comparacion-select", "est-granularidad-select", "est-desde-input", "est-hasta-input"];
+
+  function guardarEstLocal() {
+    try {
+      const sel = {};
+      EST_SELECTS.forEach(id => { const el = document.getElementById(id); if (el) sel[id] = el.value; });
+      localStorage.setItem(STORAGE_EST_KEY, JSON.stringify({ raw: estDataRaw, ipc: estIpc, sel }));
+    } catch (e) {}
+  }
+
+  function restaurarEstLocal() {
+    try {
+      const c = JSON.parse(localStorage.getItem(STORAGE_EST_KEY) || "null");
+      if (!c || !c.raw) return false;
+      EST_SELECTS.forEach(id => { const el = document.getElementById(id); if (el && c.sel && c.sel[id] != null) el.value = c.sel[id]; });
+      document.getElementById("est-personalizado-wrap").classList.toggle("hidden", c.sel?.["est-periodo-select"] !== "personalizado");
+      const r = c.raw;
+      ["desde", "hasta", "hastaProy"].forEach(k => { if (r[k]) r[k] = new Date(r[k]); });
+      estDataRaw = r;
+      estIpc = c.ipc || null;
+      estData = estAplicarPesos(estDataRaw);
+      return true;
+    } catch (e) { return false; }
+  }
+
   async function asegurarEstadisticasActualizadas() {
-    const unaHoraMs = 1 * 60 * 60 * 1000;
-    if (!estData || (Date.now() - new Date(estData.actualizadoEn).getTime()) >= unaHoraMs) {
+    if (estData) renderEstadisticas();
+    const dosMinMs = 2 * 60 * 1000;  // no repetir si se acaba de actualizar
+    if (!estData || (Date.now() - new Date(estData.actualizadoEn).getTime()) >= dosMinMs) {
       await cargarEstadisticas();
-    } else {
-      renderEstadisticas();
     }
   }
 
@@ -683,6 +710,10 @@
     if (estCargando) return;
     estCargando = true;
     estSeleccionIdx = null;
+    if (estData) {
+      const lbl = document.getElementById("estadisticas-actualizado");
+      if (!lbl.textContent.includes("actualizando")) lbl.textContent += " · actualizando…";
+    }
 
     const btn = document.getElementById("ventas-btn-est");
     const textoOriginal = btn ? btn.innerHTML : null;
@@ -747,9 +778,18 @@
       };
       await estPrepararIpc();
       estData = estAplicarPesos(estDataRaw);
+      estCargando = false;
       renderEstadisticas();
+      guardarEstLocal();
     } catch (err) {
-      document.getElementById("est-periodo-label").textContent = "Error al cargar: " + err.message;
+      estCargando = false;
+      if (estData) {
+        // Queda lo guardado en pantalla; solo se avisa.
+        renderEstadisticas();
+        document.getElementById("estadisticas-actualizado").textContent += " · sin conexión";
+      } else {
+        document.getElementById("est-periodo-label").textContent = "Error al cargar: " + err.message;
+      }
     } finally {
       estCargando = false;
       if (mostrarSpinner && btn) {
@@ -845,7 +885,7 @@
          : estPesosHoy ? " · (sin índice de inflación, pesos nominales)" : " · pesos nominales");
 
     document.getElementById("estadisticas-actualizado").textContent =
-      "Datos al " + fmtFechaReal(estData.actualizadoEn);
+      "Datos al " + fmtFechaReal(estData.actualizadoEn) + (estCargando ? " · actualizando…" : "");
 
     estActualizarSeleccionKpi();
     estRenderChart();
@@ -2092,9 +2132,7 @@
     show("screen-content");
     if (yaVisible) return;
 
-    const lastTab = localStorage.getItem("hechizo_tab");
-    if (lastTab === "resultados" || lastTab === "stock" || lastTab === "estadisticas") switchTab(lastTab);
-    else switchTab("ventas");
+    switchTab("ventas");  // al abrir la app siempre arranca en Ventas
   }
 
   function _initColapsados() {
@@ -2485,7 +2523,20 @@
     return false;
   }
 
+  // El celu a veces no cierra la app, la deja en segundo plano: si vuelve después de
+  // un rato, se comporta como recién abierta (solapa Ventas + ventas al día).
+  let _ocultaDesde = 0;
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { _ocultaDesde = Date.now(); return; }
+    if (_ocultaDesde && Date.now() - _ocultaDesde > 5 * 60 * 1000 && appData) {
+      switchTab("ventas");
+      ventasHoyRapido();
+    }
+    _ocultaDesde = 0;
+  });
+
   restaurarVentasLocal();
+  restaurarEstLocal();
   restaurarPnlLocal();
   ventasHoyRapido();
   despertarServidor().then(() => {
