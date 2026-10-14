@@ -470,7 +470,7 @@
   function actualizarLabelResultados() {
     const label = document.getElementById("updated-label");
     if (appData && appData.actualizadoEn) {
-      label.textContent = "Actualizado: " + fmtFechaReal(appData.actualizadoEn);
+      label.textContent = "Actualizado: " + fmtFechaReal(appData.actualizadoEn) + (mostrandoCache ? " · actualizando…" : "");
     } else {
       label.textContent = "Actualizado";
     }
@@ -1230,27 +1230,7 @@
       const rr = await fetchConClave(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" });
       const rj = rr.ok ? await rr.json() : null;
       if (rj?.ok && rj.hoy && rj.ayer) {
-        ventasData.hoy  = rj.hoy;
-        ventasData.ayer = rj.ayer;
-        ventasData.pendientes_hoy  = rj.pendientes_hoy  || null;
-        ventasData.pendientes_ayer = rj.pendientes_ayer || null;
-        ventasData.variacion = rj.ayer.total > 0
-          ? Math.round(((rj.hoy.total - rj.ayer.total) / rj.ayer.total) * 1000) / 10
-          : null;
-        if (ventasData.diasRecientes) {
-          let foundHoy = false, foundAyer = false;
-          for (const d of ventasData.diasRecientes) {
-            if (d.fecha === rj.hoy.fecha)  { d.total = rj.hoy.total;  d.cantidad = rj.hoy.cantidad;  foundHoy  = true; }
-            if (d.fecha === rj.ayer.fecha) { d.total = rj.ayer.total; d.cantidad = rj.ayer.cantidad; foundAyer = true; }
-          }
-          if (!foundHoy)  ventasData.diasRecientes.push({ fecha: rj.hoy.fecha,  total: rj.hoy.total,  cantidad: rj.hoy.cantidad });
-          if (!foundAyer) ventasData.diasRecientes.push({ fecha: rj.ayer.fecha, total: rj.ayer.total, cantidad: rj.ayer.cantidad });
-          ventasData.diasRecientes.sort((a, b) => a.fecha.localeCompare(b.fecha));
-        }
-        ventasData.actualizadoEn = new Date().toISOString();
-        renderVentas(true);
-        if (appData && periodoActivo) mostrar(periodoActivo);
-        ultimaLecturaVentasMs = Date.now();
+        aplicarVentasTN(rj);
       } else {
         document.getElementById("ventas-actualizado").textContent = "Error al actualizar desde TiendaNube";
       }
@@ -1260,6 +1240,43 @@
       btn.innerHTML = textoOriginal;
       btn.disabled = false;
     }
+  }
+
+  // Pisa hoy/ayer con lo que devuelve TiendaNube (hechizo-ventas-service /ventas).
+  function aplicarVentasTN(rj) {
+    if (!ventasData) ventasData = { pendientes_mes: null, diasRecientes: null };
+    ventasData.hoy  = rj.hoy;
+    ventasData.ayer = rj.ayer;
+    ventasData.pendientes_hoy  = rj.pendientes_hoy  || null;
+    ventasData.pendientes_ayer = rj.pendientes_ayer || null;
+    ventasData.variacion = rj.ayer.total > 0
+      ? Math.round(((rj.hoy.total - rj.ayer.total) / rj.ayer.total) * 1000) / 10
+      : null;
+    if (ventasData.diasRecientes) {
+      let foundHoy = false, foundAyer = false;
+      for (const d of ventasData.diasRecientes) {
+        if (d.fecha === rj.hoy.fecha)  { d.total = rj.hoy.total;  d.cantidad = rj.hoy.cantidad;  foundHoy  = true; }
+        if (d.fecha === rj.ayer.fecha) { d.total = rj.ayer.total; d.cantidad = rj.ayer.cantidad; foundAyer = true; }
+      }
+      if (!foundHoy)  ventasData.diasRecientes.push({ fecha: rj.hoy.fecha,  total: rj.hoy.total,  cantidad: rj.hoy.cantidad });
+      if (!foundAyer) ventasData.diasRecientes.push({ fecha: rj.ayer.fecha, total: rj.ayer.total, cantidad: rj.ayer.cantidad });
+      ventasData.diasRecientes.sort((a, b) => a.fecha.localeCompare(b.fecha));
+    }
+    ventasData.actualizadoEn = new Date().toISOString();
+    ultimaLecturaVentasMs = Date.now();
+    renderVentas(true);
+    if (appData && periodoActivo) mostrar(periodoActivo);
+  }
+
+  // hechizo-ventas-service está siempre prendido (el reporte, en cambio, se duerme y
+  // tarda en despertar): "ventas de hoy" se pide apenas abre la app, sin esperar a nadie.
+  async function ventasHoyRapido() {
+    if (!VENTAS_URL || VENTAS_URL.includes("TU_RAILWAY")) return;
+    try {
+      const rr = await fetchConClave(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" });
+      const rj = rr.ok ? await rr.json() : null;
+      if (rj?.ok && rj.hoy && rj.ayer) aplicarVentasTN(rj);
+    } catch (e) { /* lo reintenta cargarVentas cuando despierta el reporte */ }
   }
 
   async function cargarVentas({ silent = false, mostrarSpinner = false } = {}) {
@@ -1335,25 +1352,7 @@
                   rj?.error ? "Error: " + rj.error : "Error al obtener datos de ventas";
                 return;
               }
-              ventasData.hoy  = rj.hoy;
-              ventasData.ayer = rj.ayer;
-              ventasData.pendientes_hoy = rj.pendientes_hoy || null;
-              ventasData.variacion = rj.ayer.total > 0
-                ? Math.round(((rj.hoy.total - rj.ayer.total) / rj.ayer.total) * 1000) / 10
-                : null;
-              if (ventasData.diasRecientes) {
-                let foundHoy = false, foundAyer = false;
-                for (const d of ventasData.diasRecientes) {
-                  if (d.fecha === rj.hoy.fecha)  { d.total = rj.hoy.total;  d.cantidad = rj.hoy.cantidad;  foundHoy  = true; }
-                  if (d.fecha === rj.ayer.fecha) { d.total = rj.ayer.total; d.cantidad = rj.ayer.cantidad; foundAyer = true; }
-                }
-                if (!foundHoy)  ventasData.diasRecientes.push({ fecha: rj.hoy.fecha,  total: rj.hoy.total,  cantidad: rj.hoy.cantidad });
-                if (!foundAyer) ventasData.diasRecientes.push({ fecha: rj.ayer.fecha, total: rj.ayer.total, cantidad: rj.ayer.cantidad });
-                ventasData.diasRecientes.sort((a, b) => a.fecha.localeCompare(b.fecha));
-              }
-              ventasData.actualizadoEn = new Date().toISOString();
-              renderVentas(true);
-              if (appData && periodoActivo) mostrar(periodoActivo);
+              aplicarVentasTN(rj);
             })
             .catch(() => {
               document.getElementById("ventas-actualizado").textContent = "Error al obtener datos de ventas";
@@ -1402,14 +1401,24 @@
     const _pAyer = ventasData?.pendientes_ayer ?? null;
     const _pMes  = ventasData?.pendientes_mes  ?? null;
 
+    // Si TiendaNube ya confirmó hoy/ayer (ventasHoyRapido llega antes que la base),
+    // no se pisa con lo de la base, que puede estar unos minutos atrasado.
+    const tn = (ventasData?.actualizadoEn && ventasData.hoy?.fecha === hoyStr) ? ventasData : null;
+    if (tn) {
+      for (const d of dias) {
+        if (d.fecha === hoyStr)  { d.total = tn.hoy.total;  d.cantidad = tn.hoy.cantidad; }
+        if (d.fecha === ayerStr) { d.total = tn.ayer.total; d.cantidad = tn.ayer.cantidad; }
+      }
+    }
+
     ventasData = {
-      actualizadoEn: null,  // Se actualiza solo cuando TiendaNube confirma hoy+ayer
+      actualizadoEn: tn ? tn.actualizadoEn : null,  // Se actualiza solo cuando TiendaNube confirma hoy+ayer
       pendientes_hoy:  _pHoy,
       pendientes_ayer: _pAyer,
       pendientes_mes:  _pMes,
-      hoy:  { fecha: hoyStr,  total: hoyEntry.total,  cantidad: hoyEntry.cantidad },
-      ayer: { fecha: ayerStr, total: ayerEntry.total, cantidad: ayerEntry.cantidad },
-      variacion,
+      hoy:  tn ? tn.hoy  : { fecha: hoyStr,  total: hoyEntry.total,  cantidad: hoyEntry.cantidad },
+      ayer: tn ? tn.ayer : { fecha: ayerStr, total: ayerEntry.total, cantidad: ayerEntry.cantidad },
+      variacion: tn ? tn.variacion : variacion,
       diasRecientes: dias
     };
 
@@ -1974,8 +1983,36 @@
     }
   }
 
+  // El servidor de Railway se duerme si nadie lo usa y tarda en despertar. Para no
+  // dejar a Lore mirando "Cargando...", se muestra al toque lo último que se bajó
+  // (localStorage) y se pisa cuando llegan los datos nuevos.
+  const STORAGE_PNL_KEY = "hechizo_pnl_cache";
+  let mostrandoCache = false;
+
+  function restaurarPnlLocal() {
+    try {
+      const c = JSON.parse(localStorage.getItem(STORAGE_PNL_KEY) || "null");
+      if (!c || c.hoja !== SHEET_NAME || !c.values) return false;
+      if (c.detalle) detalleData = c.detalle;
+      mostrandoCache = true;
+      procesarDatos(c.values, c.fecha);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function guardarPnlLocal(values, fecha) {
+    try {
+      const prev = JSON.parse(localStorage.getItem(STORAGE_PNL_KEY) || "null");
+      localStorage.setItem(STORAGE_PNL_KEY, JSON.stringify({
+        hoja: SHEET_NAME, values, fecha,
+        detalle: detalleData || (prev && prev.hoja === SHEET_NAME ? prev.detalle : null),
+      }));
+    } catch (e) {}
+  }
+
   async function cargarDatos() {
-    show("screen-loading");
+    const conCache = !!appData;
+    if (!conCache) show("screen-loading");
     try {
       const range = encodeURIComponent(SHEET_NAME);
       const url = `${RAILWAY_URL}/sheet-values?range=${range}&valueRenderOption=UNFORMATTED_VALUE&t=${Date.now()}`;
@@ -1986,9 +2023,19 @@
       if (!res.ok) throw new Error("Error " + res.status);
       const json = await res.json();
 
-      cargarDetalle().then(() => { if (periodoActivo) mostrar(periodoActivo); }); // en paralelo, re-renderiza cuando llega
+      cargarDetalle().then(() => {  // en paralelo, re-renderiza cuando llega
+        if (periodoActivo) mostrar(periodoActivo);
+        guardarPnlLocal(json.values, fechaGeneral);
+      });
+      mostrandoCache = false;
       procesarDatos(json.values, fechaGeneral);
+      guardarPnlLocal(json.values, fechaGeneral);
     } catch (err) {
+      if (conCache) {
+        // Quedan los datos guardados en pantalla; solo se avisa.
+        document.getElementById("updated-label").textContent += " · sin conexión";
+        return;
+      }
       show("screen-error");
       document.getElementById("error-msg").textContent = "No se pudo cargar: " + err.message;
     }
@@ -2035,11 +2082,15 @@
       actualizadoEn: fechaReal
     };
 
-    periodoActivo = appData.ultimo;
+    // Si ya se estaba mostrando (datos guardados), solo se refresca: se respeta el
+    // mes elegido, los trimestres abiertos y la solapa en la que está.
+    const yaVisible = !document.getElementById("screen-content").classList.contains("hidden");
+    if (!yaVisible || !periodos.includes(periodoActivo)) periodoActivo = appData.ultimo;
     actualizarLabelResultados();
-    _initColapsados();
+    if (!yaVisible) _initColapsados();
     mostrar(periodoActivo);
     show("screen-content");
+    if (yaVisible) return;
 
     const lastTab = localStorage.getItem("hechizo_tab");
     if (lastTab === "resultados" || lastTab === "stock" || lastTab === "estadisticas") switchTab(lastTab);
@@ -2435,6 +2486,8 @@
   }
 
   restaurarVentasLocal();
+  restaurarPnlLocal();
+  ventasHoyRapido();
   despertarServidor().then(() => {
     cargarDatos();
     leerVentasSheet();
