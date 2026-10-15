@@ -1257,17 +1257,35 @@
     }
   }
 
-  async function refrescarVentas(btnId = "ventas-btn") {
+  // Al volver de segundo plano se disparan dos llamadas a la vez (visibilitychange +
+  // switchTab): comparten la misma promesa para que el botón no quede clavado en
+  // "Actualizando...", y el texto se restaura fijo, nunca copiado del botón.
+  let refrescarVentasPromise = null;
+  function refrescarVentas(btnId = "ventas-btn") {
+    if (!refrescarVentasPromise) {
+      refrescarVentasPromise = _refrescarVentas(btnId).finally(() => { refrescarVentasPromise = null; });
+    }
+    return refrescarVentasPromise;
+  }
+
+  async function _refrescarVentas(btnId) {
     // Solo actualiza hoy/ayer desde TiendaNube — sin tocar Supabase
     if (!VENTAS_URL || VENTAS_URL.includes("TU_RAILWAY")) return;
     if (!ventasData) { await cargarVentas({ silent: false }); return; }
     const btn = document.getElementById(btnId);
-    const textoOriginal = btn.innerHTML;
     btn.innerHTML = '<span class="ventas-spinner"></span>Actualizando...';
     btn.disabled = true;
     actualizarPendientesMes();  // en paralelo, no bloquea el botón
     try {
-      const rr = await fetchConClave(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" });
+      // Recién despierto, el celu a veces todavía no tiene red: reintenta un par de veces.
+      let rr;
+      for (let intento = 0; ; intento++) {
+        try { rr = await fetchConClave(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" }); break; }
+        catch (e) {
+          if (intento >= 2 || /clave/i.test(e.message)) throw e;
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
       const rj = rr.ok ? await rr.json() : null;
       if (rj?.ok && rj.hoy && rj.ayer) {
         aplicarVentasTN(rj);
@@ -1275,9 +1293,9 @@
         document.getElementById("ventas-actualizado").textContent = "Error al actualizar desde TiendaNube";
       }
     } catch (err) {
-      document.getElementById("ventas-actualizado").textContent = "Error: " + err.message;
+      document.getElementById("ventas-actualizado").textContent = "Sin conexión — tocá Actualizar ventas";
     } finally {
-      btn.innerHTML = textoOriginal;
+      btn.innerHTML = "↻ Actualizar ventas";
       btn.disabled = false;
     }
   }
@@ -1327,7 +1345,7 @@
         btn.innerHTML = '<span class="ventas-spinner"></span>Actualizando...';
         btn.disabled = true;
         ventasRefreshPromise.finally(() => {
-          btn.innerHTML = '↻ Refrescar ventas';
+          btn.innerHTML = '↻ Actualizar ventas';
           btn.disabled = false;
         });
       }
@@ -1335,7 +1353,7 @@
     }
 
     const btn = document.getElementById("ventas-btn");
-    const textoOriginal = btn.innerHTML;
+    const textoOriginal = "↻ Actualizar ventas";
 
     if (mostrarSpinner) {
       btn.innerHTML = '<span class="ventas-spinner"></span>Actualizando...';
