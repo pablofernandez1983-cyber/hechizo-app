@@ -2745,16 +2745,18 @@
     }
     return html;
   }
-  // El plazo de pago corre en horas hábiles: lunes a viernes, hora de Argentina (sin feriados).
+  // El plazo de pago corre en horas hábiles: lunes a viernes sin feriados, hora de Argentina.
+  // Los feriados (con puentes) los manda ventas-service junto con los pendientes.
   // Devuelve el instante (ms) en que se cumplen PEND_PLAZO_H horas hábiles desde la compra.
   const AR_MS = 3 * 36e5;
+  let pendFeriados = new Set();
   function pendVencimiento(iso) {
     let t = pendFecha(iso).getTime(), resta = PEND_PLAZO_H * 36e5;
     for (let i = 0; i < 60; i++) {
       const ar = new Date(t - AR_MS);  // campos UTC = hora de Argentina
       const finDia = Date.UTC(ar.getUTCFullYear(), ar.getUTCMonth(), ar.getUTCDate() + 1) + AR_MS;
       const dow = ar.getUTCDay();
-      if (dow !== 0 && dow !== 6) {
+      if (dow !== 0 && dow !== 6 && !pendFeriados.has(ar.toISOString().slice(0, 10))) {
         if (t + resta <= finDia) return t + resta;
         resta -= finDia - t;
       }
@@ -2817,6 +2819,7 @@
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || "Error");
       pendLista = j.pendientes || [];
+      if (j.feriados && j.feriados.length) pendFeriados = new Set(j.feriados);
       renderPendientes();
     } catch (e) {
       document.getElementById("pend-contenido").innerHTML =
