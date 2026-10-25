@@ -1948,9 +1948,12 @@
   }
   // ── fin Stock tab ────────────────────────────────────────────────────────
 
+  let siguiendoReporte = false;  // ya hay un seguimiento de progreso en pantalla
+
   async function triggearKnime() {
     const btn = document.getElementById("refresh-resultados-btn");
     const status = document.getElementById("trigger-status");
+    if (siguiendoReporte) return;  // doble toque: ya se está mostrando la corrida
     btn.disabled = true;
     btn.textContent = "Iniciando reporte...";
     status.textContent = "";
@@ -1964,6 +1967,14 @@
       });
 
       const json = await res.json();
+      // Si ya había uno corriendo (otro toque, el otro celu o la corrida automática de las
+      // 10 y las 19), en vez de error se muestra el progreso de esa corrida
+      if (res.status === 409) {
+        btn.textContent = "⏳ Procesando...";
+        status.textContent = "Ya había un reporte corriendo: te muestro cómo viene";
+        esperarResultado();
+        return;
+      }
       if (!json.ok) throw new Error(json.msg || "Error");
 
       btn.textContent = "⏳ Procesando...";
@@ -2009,6 +2020,7 @@
     let logDesde   = 0;
     let terminado  = false;
     let todasLineas = [];
+    siguiendoReporte = true;
 
     wrap.classList.add("visible");
     barEl.style.width = "3%";
@@ -2040,6 +2052,7 @@
         if (!json.corriendo && json.resultado === "OK") {
           clearInterval(pollEstado);
           terminado = true;
+          siguiendoReporte = false;
           barEl.style.width = "100%";
           stepEl.textContent = "Railway / Completado";
           status.textContent = "Recargando datos...";
@@ -2060,6 +2073,7 @@
         } else if (!json.corriendo && json.resultado === "ERROR") {
           clearInterval(pollEstado);
           terminado = true;
+          siguiendoReporte = false;
           wrap.classList.remove("visible");
           btn.disabled = false;
           btn.textContent = "↻ Refrescar resultados";
@@ -2067,6 +2081,7 @@
         } else if (intentos >= maxIntentos) {
           clearInterval(pollEstado);
           terminado = true;
+          siguiendoReporte = false;
           wrap.classList.remove("visible");
           btn.disabled = false;
           btn.textContent = "↻ Refrescar resultados";
