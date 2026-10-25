@@ -161,6 +161,11 @@
     .pend-desc { border:1px solid var(--border); border-radius:12px; padding:10px 12px; background:transparent; color:var(--muted); font-size:13px; font-family:inherit; cursor:pointer; }
     .pend-toggle { margin-top:18px; background:transparent; border:none; color:var(--muted); font-size:12px; letter-spacing:1.5px; text-transform:uppercase; font-family:inherit; cursor:pointer; padding:4px 0; }
     .pend-card.descartado { opacity:.6; }
+    .pend-cancel { margin-top:10px; background:transparent; border:none; color:var(--danger); font-size:12px; font-family:inherit; cursor:pointer; padding:2px 0; opacity:.8; }
+    .pend-confirm { margin-top:12px; border:1px solid var(--danger); border-radius:12px; padding:12px; font-size:13px; color:var(--text); line-height:1.4; }
+    .pend-confirm .pend-acciones { margin-top:10px; }
+    .pend-si { flex:1; border:none; border-radius:12px; padding:10px 12px; background:var(--danger); color:#fff; font-size:14px; font-weight:500; font-family:inherit; cursor:pointer; }
+    .pend-si:disabled { opacity:.5; }
   </style>
 </head>
 <body>
@@ -2591,6 +2596,7 @@
   const PENDIENTES_URL = "https://hechizo-ventas-service-production.up.railway.app/pendientes";
   let pendLista = [];
   let pendVerDescartados = false;
+  let pendConfirm = null;  // { id, paso: 1|2, enCurso } mientras se confirma una cancelación
 
   function escHtml(s) {
     return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -2688,7 +2694,47 @@
       <div class="pend-meta">${escHtml(p.telefono || "sin teléfono")}</div>
       ${prods ? `<div class="pend-prods">${escHtml(prods)}</div>` : ""}
       <div class="pend-acciones">${p.descartado ? "" : botonWa}${botonDesc}</div>
+      ${pendBloqueCancelar(p)}
     </div>`;
+  }
+
+  // Cancelar pide dos confirmaciones dentro de la tarjeta antes de llamar al servidor
+  function pendBloqueCancelar(p) {
+    const c = pendConfirm && pendConfirm.id === p.id ? pendConfirm : null;
+    if (!c) return `<button class="pend-cancel" onclick="pendConfirmar(${p.id}, 1)">✕ Cancelar pedido</button>`;
+    const texto = c.paso === 1
+      ? `¿Cancelar el pedido <b>#${p.numero}</b> de ${escHtml(p.nombre || "sin nombre")} por ${fmt(p.total)}?`
+      : `<b>Última confirmación.</b> Se cancela en Tiendanube y los productos vuelven al stock. No se le manda mail a la clienta. No se puede deshacer.`;
+    const si = c.paso === 1
+      ? `<button class="pend-si" onclick="pendConfirmar(${p.id}, 2)">Sí, cancelar</button>`
+      : `<button class="pend-si" onclick="pendCancelar(${p.id})" ${c.enCurso ? "disabled" : ""}>${c.enCurso ? "Cancelando…" : "Cancelar definitivamente"}</button>`;
+    return `<div class="pend-confirm">${texto}
+      <div class="pend-acciones">${si}<button class="pend-desc" onclick="pendConfirmar(null)" ${c.enCurso ? "disabled" : ""}>No</button></div>
+    </div>`;
+  }
+
+  function pendConfirmar(id, paso) {
+    pendConfirm = id ? { id, paso } : null;
+    renderPendientes();
+  }
+
+  async function pendCancelar(id) {
+    const p = pendLista.find(x => x.id === id);
+    if (!p || !pendConfirm || pendConfirm.id !== id || pendConfirm.paso !== 2) return;
+    pendConfirm.enCurso = true;
+    renderPendientes();
+    try {
+      const r = await fetchConClave(`${PENDIENTES_URL}/${id}/cancelar`, { method: "POST" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || "Error " + r.status);
+      pendLista = pendLista.filter(x => x.id !== id);
+      pendConfirm = null;
+      renderPendientes();
+    } catch (e) {
+      pendConfirm = null;
+      renderPendientes();
+      alert("No se pudo cancelar el pedido #" + p.numero + ": " + e.message);
+    }
   }
 
   function renderPendientes() {
