@@ -158,7 +158,9 @@
     .pend-edad.vencido { background:rgba(248,113,113,.14); color:var(--danger); }
     .pend-edad.plazo { background:rgba(52,211,153,.12); color:var(--success); }
     .pend-card.vencido { border-color:rgba(248,113,113,.3); }
-    .pend-seccion { display:flex; justify-content:space-between; align-items:baseline; margin:18px 0 8px; font-size:11px; letter-spacing:1.5px; text-transform:uppercase; }
+    .pend-seccion { display:flex; justify-content:space-between; align-items:baseline; margin:20px 0 8px; font-size:14px; font-weight:500; letter-spacing:1.2px; text-transform:uppercase; }
+    .pend-seccion.retirar { color:var(--accent); }
+    .pend-plegable { width:100%; background:transparent; border:none; border-top:1px solid var(--border); padding:16px 0 0; font-family:inherit; cursor:pointer; text-align:left; }
     .pend-seccion:first-child { margin-top:0; }
     .pend-seccion.vencido { color:var(--danger); }
     .pend-seccion.plazo { color:var(--success); }
@@ -169,8 +171,8 @@
     .pend-vence { font-size:12px; color:var(--success); margin-top:3px; }
     .pend-borrador { margin-top:12px; border:1px dashed rgba(37,211,102,.5); border-radius:12px; padding:12px; font-size:13px; color:var(--text); }
     .pend-borrador .pend-acciones { margin-top:10px; }
-    /* Sin tildar: borde claro y ✓ tenue, para que se lea como casillero */
-    .pend-sel { flex-shrink:0; width:42px; height:42px; border-radius:10px; border:2px solid var(--text); background:transparent; color:var(--muted); opacity:.85; font-size:20px; font-weight:700; font-family:inherit; cursor:pointer; }
+    /* Sin tildar: casillero vacío con borde claro (el ✓ aparece solo al tildar) */
+    .pend-sel { flex-shrink:0; width:42px; height:42px; border-radius:10px; border:2px solid var(--text); background:transparent; color:transparent; opacity:.85; font-size:20px; font-weight:700; font-family:inherit; cursor:pointer; }
     .pend-sel.on { background:var(--accent); border-color:var(--accent); color:#fff; opacity:1; }
     .pend-todos { margin:0 0 10px; background:transparent; border:1.5px solid var(--accent); border-radius:20px; color:var(--accent); font-size:14px; font-weight:500; font-family:inherit; cursor:pointer; padding:8px 16px; }
     .pend-barra { position:sticky; bottom:calc(env(safe-area-inset-bottom,0px) + 8px); margin-top:16px; display:flex; gap:8px; padding:10px; background:var(--card); border:1px solid var(--accent); border-radius:16px; box-shadow:0 6px 24px rgba(0,0,0,.35); }
@@ -2663,7 +2665,86 @@
     const d = Math.floor(h / 24);
     return { num: d, unidad: d === 1 ? "día" : "días" };
   }
-  function pendEsEfectivo(p) { return p.medio_tipo === "efectivo"; }
+  function pendEsEfectivo(p) { return p.tipo !== "retirar" && p.medio_tipo === "efectivo"; }
+
+  // Preparados sin retirar: pedidos pagados para retiro en el showroom, ya empaquetados.
+  // Muchos se retiraron sin marcarse en TN, por eso solo 2 meses y la sección arranca cerrada;
+  // los datos se piden recién al abrirla (tarda unos segundos).
+  const RETIRAR_URL = PENDIENTES_URL + "/retirar";
+  let pendRetirar = null;         // null = todavía no se pidió
+  let pendVerRetirar = false;
+  let pendVerOcultosRetirar = false;
+  let pendRetirarCargando = false;
+  let pendRetirarError = "";
+  function pendTodos() { return [...pendLista, ...(pendRetirar || [])]; }
+
+  async function pendCargarRetirar() {
+    pendRetirarCargando = true; pendRetirarError = "";
+    renderPendientes();
+    try {
+      const r = await fetchConClave(RETIRAR_URL + "?t=" + Date.now(), { cache: "no-store" });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Error");
+      pendRetirar = j.pedidos || [];
+    } catch (e) {
+      pendRetirarError = e.message;
+    }
+    pendRetirarCargando = false;
+    renderPendientes();
+  }
+  function pendToggleRetirar() {
+    pendVerRetirar = !pendVerRetirar;
+    if (pendVerRetirar && !pendRetirarCargando) pendCargarRetirar();
+    else renderPendientes();
+  }
+
+  function tarjetaRetirar(p) {
+    const edad = pendEdad(p.listo_desde);
+    const botonWa = p.whatsapp
+      ? `<button class="pend-wa ${p.reclamado_en ? "ya" : ""}" onclick="pendWhatsapp(${p.id})">${p.reclamado_en ? `✓ Avisado ${pendHace(p.reclamado_en)} · reenviar` : "💬 Avisar que está listo"}</button>`
+      : `<button class="pend-wa" disabled>Sin teléfono</button>`;
+    const botonOcultar = p.descartado
+      ? `<button class="pend-desc" onclick="pendAccion(${p.id}, 'restaurar')">Restaurar</button>`
+      : `<button class="pend-desc" onclick="pendAccion(${p.id}, 'descartar')">Ya retiró / ocultar</button>`;
+    return `<div class="pend-card ${p.descartado ? "descartado" : ""}">
+      <div class="pend-cuerpo">
+        <div class="pend-edad neutro"><b>${edad.num}</b><span>${edad.unidad}</span></div>
+        <div class="pend-info">
+          <div class="pend-fila1">
+            <div class="pend-nombre">${escHtml(p.nombre || "Sin nombre")}</div>
+            <div class="pend-total" style="color:var(--text)">${fmt(p.total)}</div>
+          </div>
+          <div class="pend-meta">#${p.numero} · preparado el ${pendDia(p.listo_desde)}</div>
+          <div class="pend-meta">${escHtml(p.telefono || "sin teléfono")}</div>
+        </div>
+      </div>
+      ${pendBorradores.has(p.id) && !p.descartado
+        ? `<div class="pend-borrador">📝 Borrador preparado en WhatsApp. ¿Lo enviaste?
+            <div class="pend-acciones">
+              <button class="pend-wa" onclick="pendBorradorEnviado(${p.id}, true)">Sí, lo envié</button>
+              <button class="pend-desc" onclick="pendBorradorEnviado(${p.id}, false)">No</button>
+            </div>
+          </div>`
+        : `<div class="pend-acciones">${pendSeleccionable(p) && !pendCola ? `<button class="pend-sel ${pendSeleccion.has(p.id) ? "on" : ""}" onclick="pendTildar(${p.id})" aria-label="Seleccionar">✓</button>` : ""}${p.descartado ? "" : botonWa}${botonOcultar}</div>`}
+    </div>`;
+  }
+
+  function pendSeccionRetirar() {
+    const lista = (pendRetirar || []).slice().sort((a, b) => pendFecha(a.listo_desde) - pendFecha(b.listo_desde));
+    const visibles = lista.filter(p => !p.descartado), ocultos = lista.filter(p => p.descartado);
+    let html = `<button class="pend-seccion retirar pend-plegable" onclick="pendToggleRetirar()">
+      <span>${pendVerRetirar ? "▾" : "▸"} Preparados sin retirar${pendRetirar ? ` (${visibles.length})` : ""}</span><small>últimos 2 meses</small></button>`;
+    if (!pendVerRetirar) return html;
+    if (pendRetirarCargando) return html + `<div class="pend-meta" style="padding:8px 0">Buscando pedidos preparados… puede tardar unos segundos</div>`;
+    if (pendRetirarError) return html + `<div class="pend-meta" style="padding:8px 0">No se pudieron traer (${escHtml(pendRetirarError)}) · <a href="#" onclick="pendCargarRetirar();return false" style="color:var(--accent)">reintentar</a></div>`;
+    html += `<div class="pend-meta" style="margin:-4px 0 8px">Ordenados por fecha de preparación. Si alguno ya lo retiraron, ocultalo.</div>`;
+    html += visibles.length ? `<div class="pend-lista">${visibles.map(tarjetaRetirar).join("")}</div>` : `<div class="pend-meta">No hay pedidos preparados sin retirar ✨</div>`;
+    if (ocultos.length) {
+      html += `<button class="pend-toggle" onclick="pendVerOcultosRetirar=!pendVerOcultosRetirar;renderPendientes()">${pendVerOcultosRetirar ? "▾" : "▸"} Ocultos (${ocultos.length})</button>`;
+      if (pendVerOcultosRetirar) html += `<div class="pend-lista" style="margin-top:8px">${ocultos.map(tarjetaRetirar).join("")}</div>`;
+    }
+    return html;
+  }
   function pendVenceEn(iso) {
     const falta = PEND_PLAZO_H - pendHoras(iso);
     return falta < 1 ? "vence en menos de 1 h" : `vence en ${Math.floor(falta)} h`;
@@ -2676,6 +2757,11 @@
   function pendMensaje(p) {
     const hola = p.nombre ? `¡Hola ${pendPrimerNombre(p.nombre)}! ✨` : "¡Hola! ✨";
     const pedido = `tu pedido #${p.numero} del ${pendDia(p.creado)} por ${fmt(p.total)}`;
+    if (p.tipo === "retirar") {
+      return `${hola} Te escribimos de Hechizo Bijou 💜\n\n` +
+        `Tu pedido #${p.numero} ya está listo para retirar por el showroom de Villa Devoto 🎁\n\n` +
+        `¿Cuándo te queda cómodo pasar? Así coordinamos 🙌 ¡Gracias!`;
+    }
     if (p.medio_tipo === "transferencia") {
       return `${hola} Te escribimos de Hechizo Bijou 💜\n\n` +
         `Vimos ${pedido} y todavía no nos figura la transferencia.\n\n` +
@@ -2697,6 +2783,7 @@
     const ov = document.getElementById("pend-overlay");
     if (ov.classList.contains("hidden")) {
       ov.classList.remove("hidden");
+      pendVerRetirar = false;  // "Preparados sin retirar" siempre arranca cerrada
       document.body.style.overflow = "hidden";
       history.pushState({ pend: 1 }, "");
     }
@@ -2841,17 +2928,18 @@
       html += `<div class="pend-seccion efectivo"><span>Efectivo al retirar (${efectivos.length})</span><small>${suma(efectivos)}</small></div>
         <div class="pend-lista">${efectivos.map(tarjetaPendiente).join("")}</div>`;
     }
-    if (!activos.length) html = `<div class="state-screen"><div class="state-text">No hay pedidos pendientes ✨</div></div>`;
+    if (!activos.length) html += `<div class="pend-meta" style="padding:16px 0;text-align:center">No hay pedidos pendientes de pago ✨</div>`;
     if (descartados.length) {
       html += `<button class="pend-toggle" onclick="pendVerDescartados=!pendVerDescartados;renderPendientes()">
         ${pendVerDescartados ? "▾" : "▸"} Descartados (${descartados.length})</button>`;
       if (pendVerDescartados) html += `<div class="pend-lista" style="margin-top:8px">${descartados.map(tarjetaPendiente).join("")}</div>`;
     }
+    html += pendSeccionRetirar();
     // Barra de abajo cuando hay tildados (lo que ya no está en la lista no cuenta)
-    for (const id of [...pendSeleccion]) if (!pendLista.some(p => p.id === id && pendSeleccionable(p))) pendSeleccion.delete(id);
+    for (const id of [...pendSeleccion]) if (!pendTodos().some(p => p.id === id && pendSeleccionable(p))) pendSeleccion.delete(id);
     if (pendSeleccion.size && !pendCola) {
       html += `<div class="pend-barra">
-        <button class="pend-wa" onclick="pendIniciarCola()">💬 Reclamar ${pendSeleccion.size === 1 ? "1 seleccionado" : `los ${pendSeleccion.size} seleccionados`}</button>
+        <button class="pend-wa" onclick="pendIniciarCola()">💬 ${pendTodos().some(p => pendSeleccion.has(p.id) && p.tipo === "retirar") ? "Escribir a" : "Reclamar"} ${pendSeleccion.size === 1 ? "1 seleccionado" : `los ${pendSeleccion.size} seleccionados`}</button>
         <button class="pend-desc" onclick="pendSeleccion.clear();renderPendientes()">Limpiar</button>
       </div>`;
     }
@@ -2872,7 +2960,7 @@
 
   function pendIniciarCola() {
     // Mismo orden que la pantalla: del más viejo al más nuevo
-    const ids = [...pendLista].sort((a, b) => pendFecha(a.creado) - pendFecha(b.creado))
+    const ids = pendTodos().sort((a, b) => pendFecha(a.creado) - pendFecha(b.creado))
       .filter(p => pendSeleccion.has(p.id)).map(p => p.id);
     if (!ids.length) return;
     pendSeleccion.clear();
@@ -2886,7 +2974,7 @@
     if (!pendCola || pendCola.fin || pendCola.ids[pendCola.idx] !== id) return;
     enviado ? pendCola.enviados++ : pendCola.salteados++;
     pendCola.idx++;
-    while (pendCola.idx < pendCola.ids.length && !pendLista.some(p => p.id === pendCola.ids[pendCola.idx])) {
+    while (pendCola.idx < pendCola.ids.length && !pendTodos().some(p => p.id === pendCola.ids[pendCola.idx])) {
       pendCola.idx++;  // se canceló o desapareció mientras tanto
     }
     if (pendCola.idx < pendCola.ids.length) {
@@ -2912,7 +3000,7 @@
       return `<div class="pend-cola fin">✓ Cola terminada: ${resumen}
         <div class="pend-acciones"><button class="pend-desc" onclick="pendDetenerCola()">Listo</button></div></div>`;
     }
-    const p = pendLista.find(x => x.id === c.ids[c.idx]);
+    const p = pendTodos().find(x => x.id === c.ids[c.idx]);
     if (!p) { pendCola = null; pendGuardarCola(); return ""; }
     // La pregunta va también acá arriba para no tener que buscar la tarjeta
     const pregunta = pendBorradores.has(p.id)
@@ -2930,7 +3018,7 @@
   }
 
   function pendWhatsapp(id) {
-    const p = pendLista.find(x => x.id === id);
+    const p = pendTodos().find(x => x.id === id);
     if (!p) return;
     window.open(`https://wa.me/${p.whatsapp}?text=${encodeURIComponent(pendMensaje(p))}`, "_blank");
     // Abrir el chat no es enviar: se marca como reclamado recién cuando se confirma
@@ -2940,7 +3028,7 @@
   }
 
   function pendBorradorEnviado(id, enviado) {
-    const p = pendLista.find(x => x.id === id);
+    const p = pendTodos().find(x => x.id === id);
     pendBorradores.delete(id);
     pendGuardarBorradores();
     if (p && enviado) {
@@ -2953,7 +3041,7 @@
   }
 
   function pendAccion(id, accion) {
-    const p = pendLista.find(x => x.id === id);
+    const p = pendTodos().find(x => x.id === id);
     if (!p) return;
     p.descartado = accion === "descartar";
     renderPendientes();
