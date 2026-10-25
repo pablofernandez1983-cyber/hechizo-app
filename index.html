@@ -2745,9 +2745,32 @@
     }
     return html;
   }
+  // El plazo de pago corre en horas hábiles: lunes a viernes, hora de Argentina (sin feriados).
+  // Devuelve el instante (ms) en que se cumplen PEND_PLAZO_H horas hábiles desde la compra.
+  const AR_MS = 3 * 36e5;
+  function pendVencimiento(iso) {
+    let t = pendFecha(iso).getTime(), resta = PEND_PLAZO_H * 36e5;
+    for (let i = 0; i < 60; i++) {
+      const ar = new Date(t - AR_MS);  // campos UTC = hora de Argentina
+      const finDia = Date.UTC(ar.getUTCFullYear(), ar.getUTCMonth(), ar.getUTCDate() + 1) + AR_MS;
+      const dow = ar.getUTCDay();
+      if (dow !== 0 && dow !== 6) {
+        if (t + resta <= finDia) return t + resta;
+        resta -= finDia - t;
+      }
+      t = finDia;
+    }
+    return t;
+  }
+  function pendVencido(p) { return Date.now() >= pendVencimiento(p.creado); }
   function pendVenceEn(iso) {
-    const falta = PEND_PLAZO_H - pendHoras(iso);
-    return falta < 1 ? "vence en menos de 1 h" : `vence en ${Math.floor(falta)} h`;
+    const v = pendVencimiento(iso), falta = (v - Date.now()) / 36e5;
+    if (falta < 1) return "vence en menos de 1 h";
+    if (falta < 12) return `vence en ${Math.floor(falta)} h`;
+    const d = new Date(v);
+    const dia = d.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "short", day: "numeric", month: "numeric" });
+    const hora = d.toLocaleTimeString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit" });
+    return `vence el ${dia} a las ${hora}`;
   }
   function pendPrimerNombre(n) {
     const p = String(n || "").trim().split(/\s+/)[0] || "";
@@ -2820,7 +2843,7 @@
     // empaqueta no hay nada que reclamarle a la clienta
     const efectivo = pendEsEfectivo(p);
     const preparado = p.preparacion && p.preparacion !== "unpacked";
-    const vencido = !efectivo && pendHoras(p.creado) >= PEND_PLAZO_H;
+    const vencido = !efectivo && pendVencido(p);
     const edad = pendEdad(p.creado);
     const reclamado = p.reclamado_en
       ? `✓ ${efectivo ? "Avisado" : "Reclamado"} ${pendHace(p.reclamado_en)} · reenviar`
@@ -2907,11 +2930,11 @@
     const activos = orden.filter(p => !p.descartado);
     const descartados = orden.filter(p => p.descartado);
     const efectivos = activos.filter(pendEsEfectivo);
-    const vencidos = activos.filter(p => !pendEsEfectivo(p) && pendHoras(p.creado) >= PEND_PLAZO_H);
-    const enPlazo = activos.filter(p => !pendEsEfectivo(p) && pendHoras(p.creado) < PEND_PLAZO_H);
+    const vencidos = activos.filter(p => !pendEsEfectivo(p) && pendVencido(p));
+    const enPlazo = activos.filter(p => !pendEsEfectivo(p) && !pendVencido(p));
     const suma = l => fmt(l.reduce((s, p) => s + (p.total || 0), 0));
     document.getElementById("pend-sub").textContent = activos.length
-      ? `Últimos 30 días · plazo de pago ${PEND_PLAZO_H} h`
+      ? `Últimos 30 días · plazo de pago ${PEND_PLAZO_H} h hábiles`
       : "Últimos 30 días";
     let html = pendBannerCola();
     const vencSel = vencidos.filter(pendSeleccionable);
@@ -2921,7 +2944,7 @@
         <div class="pend-lista">${vencidos.map(tarjetaPendiente).join("")}</div>`;
     }
     if (enPlazo.length) {
-      html += `<div class="pend-seccion plazo"><span>En plazo · menos de ${PEND_PLAZO_H} h (${enPlazo.length})</span><small>${suma(enPlazo)}</small></div>
+      html += `<div class="pend-seccion plazo"><span>En plazo · ${PEND_PLAZO_H} h hábiles (${enPlazo.length})</span><small>${suma(enPlazo)}</small></div>
         <div class="pend-lista">${enPlazo.map(tarjetaPendiente).join("")}</div>`;
     }
     if (efectivos.length) {
