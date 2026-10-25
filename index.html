@@ -165,6 +165,8 @@
     .pend-seccion small { font-size:11px; letter-spacing:0; text-transform:none; color:var(--muted); }
     .pend-wa.suave { background:transparent; color:#25d366; border:1px solid rgba(37,211,102,.4); }
     .pend-vence { font-size:12px; color:var(--success); margin-top:3px; }
+    .pend-borrador { margin-top:12px; border:1px dashed rgba(37,211,102,.5); border-radius:12px; padding:12px; font-size:13px; color:var(--text); }
+    .pend-borrador .pend-acciones { margin-top:10px; }
     .pend-nombre { font-size:15px; font-weight:500; color:var(--text); }
     .pend-total { font-size:15px; font-weight:500; color:#f59e0b; white-space:nowrap; }
     .pend-meta { font-size:12px; color:var(--muted); margin-top:3px; }
@@ -2612,6 +2614,10 @@
   let pendLista = [];
   let pendVerDescartados = false;
   let pendConfirm = null;  // { id, paso: 1|2, enCurso } mientras se confirma una cancelación
+  // Pedidos con el borrador de WhatsApp abierto pero sin confirmar si se envió. Se guarda en
+  // localStorage por si la app se recarga mientras se está en WhatsApp.
+  let pendBorradores = new Set((() => { try { return JSON.parse(localStorage.getItem("hechizo_pend_borradores") || "[]"); } catch (e) { return []; } })());
+  function pendGuardarBorradores() { try { localStorage.setItem("hechizo_pend_borradores", JSON.stringify([...pendBorradores])); } catch (e) {} }
 
   function escHtml(s) {
     return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -2731,8 +2737,15 @@
           ${prods ? `<div class="pend-prods">${escHtml(prods)}</div>` : ""}
         </div>
       </div>
-      <div class="pend-acciones">${p.descartado ? "" : botonWa}${botonDesc}</div>
-      ${vencido ? pendBloqueCancelar(p) : ""}
+      ${pendBorradores.has(p.id) && !p.descartado
+        ? `<div class="pend-borrador">📝 Borrador preparado en WhatsApp. ¿Lo enviaste?
+            <div class="pend-acciones">
+              <button class="pend-wa" onclick="pendBorradorEnviado(${p.id}, true)">Sí, lo envié</button>
+              <button class="pend-desc" onclick="pendBorradorEnviado(${p.id}, false)">No</button>
+            </div>
+          </div>`
+        : `<div class="pend-acciones">${p.descartado ? "" : botonWa}${botonDesc}</div>
+           ${vencido ? pendBloqueCancelar(p) : ""}`}
     </div>`;
   }
 
@@ -2808,9 +2821,22 @@
     const p = pendLista.find(x => x.id === id);
     if (!p) return;
     window.open(`https://wa.me/${p.whatsapp}?text=${encodeURIComponent(pendMensaje(p))}`, "_blank");
-    p.reclamado_en = new Date().toISOString();
+    // Abrir el chat no es enviar: se marca como reclamado recién cuando se confirma
+    pendBorradores.add(id);
+    pendGuardarBorradores();
     renderPendientes();
-    pendGuardar(p, "reclamado");
+  }
+
+  function pendBorradorEnviado(id, enviado) {
+    const p = pendLista.find(x => x.id === id);
+    pendBorradores.delete(id);
+    pendGuardarBorradores();
+    if (p && enviado) {
+      p.reclamado_en = new Date().toISOString();
+      pendGuardar(p, "reclamado");
+    }
+    // Si dijo que no, queda como estaba (si ya se había reclamado antes, ese reclamo sigue valiendo)
+    renderPendientes();
   }
 
   function pendAccion(id, accion) {
