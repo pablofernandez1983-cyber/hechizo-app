@@ -150,6 +150,21 @@
     .pend-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px; }
     .pend-card.reclamado { border-color:rgba(52,211,153,.35); }
     .pend-fila1 { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+    .pend-cuerpo { display:flex; gap:12px; align-items:flex-start; }
+    .pend-info { flex:1; min-width:0; }
+    .pend-edad { flex-shrink:0; width:58px; border-radius:12px; padding:8px 0 6px; text-align:center; line-height:1; }
+    .pend-edad b { display:block; font-family:"DM Serif Display",serif; font-size:26px; font-weight:400; }
+    .pend-edad span { display:block; font-size:10px; letter-spacing:.5px; margin-top:3px; }
+    .pend-edad.vencido { background:rgba(248,113,113,.14); color:var(--danger); }
+    .pend-edad.plazo { background:rgba(52,211,153,.12); color:var(--success); }
+    .pend-card.vencido { border-color:rgba(248,113,113,.3); }
+    .pend-seccion { display:flex; justify-content:space-between; align-items:baseline; margin:18px 0 8px; font-size:11px; letter-spacing:1.5px; text-transform:uppercase; }
+    .pend-seccion:first-child { margin-top:0; }
+    .pend-seccion.vencido { color:var(--danger); }
+    .pend-seccion.plazo { color:var(--success); }
+    .pend-seccion small { font-size:11px; letter-spacing:0; text-transform:none; color:var(--muted); }
+    .pend-wa.suave { background:transparent; color:#25d366; border:1px solid rgba(37,211,102,.4); }
+    .pend-vence { font-size:12px; color:var(--success); margin-top:3px; }
     .pend-nombre { font-size:15px; font-weight:500; color:var(--text); }
     .pend-total { font-size:15px; font-weight:500; color:#f59e0b; white-space:nowrap; }
     .pend-meta { font-size:12px; color:var(--muted); margin-top:3px; }
@@ -2609,11 +2624,25 @@
     return pendFecha(iso).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "numeric" });
   }
   function pendHace(iso) {
-    const h = (Date.now() - pendFecha(iso).getTime()) / 36e5;
+    const h = pendHoras(iso);
     if (h < 1) return "hace un rato";
     if (h < 24) return `hace ${Math.floor(h)} h`;
     const d = Math.floor(h / 24);
     return d === 1 ? "hace 1 día" : `hace ${d} días`;
+  }
+  // Plazo que se le da a la clienta para pagar; pasado eso, el pedido se reclama
+  const PEND_PLAZO_H = 48;
+  function pendHoras(iso) { return (Date.now() - pendFecha(iso).getTime()) / 36e5; }
+  // Badge de antigüedad: horas hasta 2 días, después días
+  function pendEdad(iso) {
+    const h = pendHoras(iso);
+    if (h < PEND_PLAZO_H) return { num: Math.max(0, Math.floor(h)), unidad: "horas" };
+    const d = Math.floor(h / 24);
+    return { num: d, unidad: d === 1 ? "día" : "días" };
+  }
+  function pendVenceEn(iso) {
+    const falta = PEND_PLAZO_H - pendHoras(iso);
+    return falta < 1 ? "vence en menos de 1 h" : `vence en ${Math.floor(falta)} h`;
   }
   function pendPrimerNombre(n) {
     const p = String(n || "").trim().split(/\s+/)[0] || "";
@@ -2676,25 +2705,34 @@
 
   function tarjetaPendiente(p) {
     const prods = (p.productos || []).join(" · ");
+    const vencido = pendHoras(p.creado) >= PEND_PLAZO_H;
+    const edad = pendEdad(p.creado);
     const reclamado = p.reclamado_en
-      ? `✓ Reclamado el ${pendDia(p.reclamado_en)} · reenviar`
-      : "💬 Reclamar por WhatsApp";
+      ? `✓ Reclamado ${pendHace(p.reclamado_en)} · reenviar`
+      : (vencido ? "💬 Reclamar por WhatsApp" : "💬 Escribir igual");
+    const claseWa = p.reclamado_en ? "ya" : (vencido ? "" : "suave");
     const botonWa = p.whatsapp
-      ? `<button class="pend-wa ${p.reclamado_en ? "ya" : ""}" onclick="pendWhatsapp(${p.id})">${reclamado}</button>`
+      ? `<button class="pend-wa ${claseWa}" onclick="pendWhatsapp(${p.id})">${reclamado}</button>`
       : `<button class="pend-wa" disabled>Sin teléfono</button>`;
     const botonDesc = p.descartado
       ? `<button class="pend-desc" onclick="pendAccion(${p.id}, 'restaurar')">Restaurar</button>`
       : `<button class="pend-desc" onclick="pendAccion(${p.id}, 'descartar')">Descartar</button>`;
-    return `<div class="pend-card ${p.reclamado_en ? "reclamado" : ""} ${p.descartado ? "descartado" : ""}">
-      <div class="pend-fila1">
-        <div class="pend-nombre">${escHtml(p.nombre || "Sin nombre")}</div>
-        <div class="pend-total">${fmt(p.total)}</div>
+    return `<div class="pend-card ${vencido && !p.descartado ? "vencido" : ""} ${p.reclamado_en ? "reclamado" : ""} ${p.descartado ? "descartado" : ""}">
+      <div class="pend-cuerpo">
+        <div class="pend-edad ${vencido ? "vencido" : "plazo"}"><b>${edad.num}</b><span>${edad.unidad}</span></div>
+        <div class="pend-info">
+          <div class="pend-fila1">
+            <div class="pend-nombre">${escHtml(p.nombre || "Sin nombre")}</div>
+            <div class="pend-total">${fmt(p.total)}</div>
+          </div>
+          <div class="pend-meta">#${p.numero} · ${pendDia(p.creado)} · ${escHtml(p.medio || "—")}</div>
+          ${vencido ? "" : `<div class="pend-vence">${pendVenceEn(p.creado)}</div>`}
+          <div class="pend-meta">${escHtml(p.telefono || "sin teléfono")}</div>
+          ${prods ? `<div class="pend-prods">${escHtml(prods)}</div>` : ""}
+        </div>
       </div>
-      <div class="pend-meta">#${p.numero} · ${pendDia(p.creado)} (${pendHace(p.creado)}) · ${escHtml(p.medio || "—")}</div>
-      <div class="pend-meta">${escHtml(p.telefono || "sin teléfono")}</div>
-      ${prods ? `<div class="pend-prods">${escHtml(prods)}</div>` : ""}
       <div class="pend-acciones">${p.descartado ? "" : botonWa}${botonDesc}</div>
-      ${pendBloqueCancelar(p)}
+      ${vencido ? pendBloqueCancelar(p) : ""}
     </div>`;
   }
 
@@ -2738,15 +2776,26 @@
   }
 
   function renderPendientes() {
-    const activos = pendLista.filter(p => !p.descartado);
-    const descartados = pendLista.filter(p => p.descartado);
-    const total = activos.reduce((s, p) => s + (p.total || 0), 0);
+    // Del más viejo al más nuevo, separados por el plazo de pago
+    const orden = [...pendLista].sort((a, b) => pendFecha(a.creado) - pendFecha(b.creado));
+    const activos = orden.filter(p => !p.descartado);
+    const descartados = orden.filter(p => p.descartado);
+    const vencidos = activos.filter(p => pendHoras(p.creado) >= PEND_PLAZO_H);
+    const enPlazo = activos.filter(p => pendHoras(p.creado) < PEND_PLAZO_H);
+    const suma = l => fmt(l.reduce((s, p) => s + (p.total || 0), 0));
     document.getElementById("pend-sub").textContent = activos.length
-      ? `Últimos 30 días · ${activos.length} para reclamar · ${fmt(total)}`
+      ? `Últimos 30 días · plazo de pago ${PEND_PLAZO_H} h`
       : "Últimos 30 días";
-    let html = activos.length
-      ? `<div class="pend-lista">${activos.map(tarjetaPendiente).join("")}</div>`
-      : `<div class="state-screen"><div class="state-text">No hay pedidos para reclamar ✨</div></div>`;
+    let html = "";
+    if (vencidos.length) {
+      html += `<div class="pend-seccion vencido"><span>Vencidos · para reclamar (${vencidos.length})</span><small>${suma(vencidos)}</small></div>
+        <div class="pend-lista">${vencidos.map(tarjetaPendiente).join("")}</div>`;
+    }
+    if (enPlazo.length) {
+      html += `<div class="pend-seccion plazo"><span>En plazo · menos de ${PEND_PLAZO_H} h (${enPlazo.length})</span><small>${suma(enPlazo)}</small></div>
+        <div class="pend-lista">${enPlazo.map(tarjetaPendiente).join("")}</div>`;
+    }
+    if (!activos.length) html = `<div class="state-screen"><div class="state-text">No hay pedidos pendientes ✨</div></div>`;
     if (descartados.length) {
       html += `<button class="pend-toggle" onclick="pendVerDescartados=!pendVerDescartados;renderPendientes()">
         ${pendVerDescartados ? "▾" : "▸"} Descartados (${descartados.length})</button>`;
