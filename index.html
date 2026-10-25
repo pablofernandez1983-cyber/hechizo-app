@@ -162,6 +162,8 @@
     .pend-seccion:first-child { margin-top:0; }
     .pend-seccion.vencido { color:var(--danger); }
     .pend-seccion.plazo { color:var(--success); }
+    .pend-seccion.efectivo { color:var(--muted); }
+    .pend-edad.neutro { background:rgba(157,142,192,.14); color:var(--muted); }
     .pend-seccion small { font-size:11px; letter-spacing:0; text-transform:none; color:var(--muted); }
     .pend-wa.suave { background:transparent; color:#25d366; border:1px solid rgba(37,211,102,.4); }
     .pend-vence { font-size:12px; color:var(--success); margin-top:3px; }
@@ -2647,6 +2649,7 @@
     const d = Math.floor(h / 24);
     return { num: d, unidad: d === 1 ? "día" : "días" };
   }
+  function pendEsEfectivo(p) { return p.medio_tipo === "efectivo"; }
   function pendVenceEn(iso) {
     const falta = PEND_PLAZO_H - pendHoras(iso);
     return falta < 1 ? "vence en menos de 1 h" : `vence en ${Math.floor(falta)} h`;
@@ -2665,10 +2668,10 @@
         `Si ya la hiciste, ¿nos pasás el comprobante por acá así lo preparamos? 🙌\n` +
         `Y si tuviste alguna duda o inconveniente, contanos que te ayudamos. ¡Gracias!`;
     }
-    if (p.medio_tipo === "efectivo") {
+    if (pendEsEfectivo(p)) {
       return `${hola} Te escribimos de Hechizo Bijou 💜\n\n` +
-        `Tenemos reservado ${pedido}, para abonar en efectivo en el showroom de Villa Devoto.\n\n` +
-        `¿Cuándo te queda cómodo pasar a retirarlo? Así te lo dejamos listo 🙌 ¡Gracias!`;
+        `Ya está listo ${pedido} para retirar por el showroom de Villa Devoto (se abona en efectivo al retirarlo).\n\n` +
+        `¿Cuándo te queda cómodo pasar? Así coordinamos 🙌 ¡Gracias!`;
     }
     const medio = p.medio ? ` con ${p.medio}` : "";
     return `${hola} Te escribimos de Hechizo Bijou 💜\n\n` +
@@ -2712,28 +2715,36 @@
 
   function tarjetaPendiente(p) {
     const prods = (p.productos || []).join(" · ");
-    const vencido = pendHoras(p.creado) >= PEND_PLAZO_H;
+    // Efectivo al retirar: se paga en el showroom, así que no vence; hasta que Hechizo lo
+    // empaqueta no hay nada que reclamarle a la clienta
+    const efectivo = pendEsEfectivo(p);
+    const preparado = p.preparacion && p.preparacion !== "unpacked";
+    const vencido = !efectivo && pendHoras(p.creado) >= PEND_PLAZO_H;
     const edad = pendEdad(p.creado);
     const reclamado = p.reclamado_en
-      ? `✓ Reclamado ${pendHace(p.reclamado_en)} · reenviar`
-      : (vencido ? "💬 Reclamar por WhatsApp" : "💬 Escribir igual");
-    const claseWa = p.reclamado_en ? "ya" : (vencido ? "" : "suave");
-    const botonWa = p.whatsapp
+      ? `✓ ${efectivo ? "Avisado" : "Reclamado"} ${pendHace(p.reclamado_en)} · reenviar`
+      : (efectivo ? "💬 Coordinar retiro" : vencido ? "💬 Reclamar por WhatsApp" : "💬 Escribir igual");
+    const claseWa = p.reclamado_en ? "ya" : (vencido || efectivo ? "" : "suave");
+    const botonWa = efectivo && !preparado ? ""
+      : p.whatsapp
       ? `<button class="pend-wa ${claseWa}" onclick="pendWhatsapp(${p.id})">${reclamado}</button>`
       : `<button class="pend-wa" disabled>Sin teléfono</button>`;
+    const estadoEf = !efectivo ? ""
+      : preparado ? `<div class="pend-vence">✓ Listo para retirar</div>`
+      : `<div class="pend-vence" style="color:#f59e0b">📦 Falta preparar: todavía no hay que reclamar nada</div>`;
     const botonDesc = p.descartado
       ? `<button class="pend-desc" onclick="pendAccion(${p.id}, 'restaurar')">Restaurar</button>`
       : `<button class="pend-desc" onclick="pendAccion(${p.id}, 'descartar')">Descartar</button>`;
     return `<div class="pend-card ${vencido && !p.descartado ? "vencido" : ""} ${p.reclamado_en ? "reclamado" : ""} ${p.descartado ? "descartado" : ""}">
       <div class="pend-cuerpo">
-        <div class="pend-edad ${vencido ? "vencido" : "plazo"}"><b>${edad.num}</b><span>${edad.unidad}</span></div>
+        <div class="pend-edad ${efectivo ? "neutro" : vencido ? "vencido" : "plazo"}"><b>${edad.num}</b><span>${edad.unidad}</span></div>
         <div class="pend-info">
           <div class="pend-fila1">
             <div class="pend-nombre">${escHtml(p.nombre || "Sin nombre")}</div>
             <div class="pend-total">${fmt(p.total)}</div>
           </div>
           <div class="pend-meta">#${p.numero} · ${pendDia(p.creado)} · ${escHtml(p.medio || "—")}</div>
-          ${vencido ? "" : `<div class="pend-vence">${pendVenceEn(p.creado)}</div>`}
+          ${efectivo ? estadoEf : vencido ? "" : `<div class="pend-vence">${pendVenceEn(p.creado)}</div>`}
           <div class="pend-meta">${escHtml(p.telefono || "sin teléfono")}</div>
           ${prods ? `<div class="pend-prods">${escHtml(prods)}</div>` : ""}
         </div>
@@ -2746,7 +2757,7 @@
             </div>
           </div>`
         : `<div class="pend-acciones">${p.descartado ? "" : botonWa}${botonDesc}</div>
-           ${vencido ? pendBloqueCancelar(p) : ""}`}
+           ${vencido || (efectivo && preparado) ? pendBloqueCancelar(p) : ""}`}
     </div>`;
   }
 
@@ -2794,8 +2805,9 @@
     const orden = [...pendLista].sort((a, b) => pendFecha(a.creado) - pendFecha(b.creado));
     const activos = orden.filter(p => !p.descartado);
     const descartados = orden.filter(p => p.descartado);
-    const vencidos = activos.filter(p => pendHoras(p.creado) >= PEND_PLAZO_H);
-    const enPlazo = activos.filter(p => pendHoras(p.creado) < PEND_PLAZO_H);
+    const efectivos = activos.filter(pendEsEfectivo);
+    const vencidos = activos.filter(p => !pendEsEfectivo(p) && pendHoras(p.creado) >= PEND_PLAZO_H);
+    const enPlazo = activos.filter(p => !pendEsEfectivo(p) && pendHoras(p.creado) < PEND_PLAZO_H);
     const suma = l => fmt(l.reduce((s, p) => s + (p.total || 0), 0));
     document.getElementById("pend-sub").textContent = activos.length
       ? `Últimos 30 días · plazo de pago ${PEND_PLAZO_H} h`
@@ -2808,6 +2820,10 @@
     if (enPlazo.length) {
       html += `<div class="pend-seccion plazo"><span>En plazo · menos de ${PEND_PLAZO_H} h (${enPlazo.length})</span><small>${suma(enPlazo)}</small></div>
         <div class="pend-lista">${enPlazo.map(tarjetaPendiente).join("")}</div>`;
+    }
+    if (efectivos.length) {
+      html += `<div class="pend-seccion efectivo"><span>Efectivo al retirar (${efectivos.length})</span><small>${suma(efectivos)}</small></div>
+        <div class="pend-lista">${efectivos.map(tarjetaPendiente).join("")}</div>`;
     }
     if (!activos.length) html = `<div class="state-screen"><div class="state-text">No hay pedidos pendientes ✨</div></div>`;
     if (descartados.length) {
