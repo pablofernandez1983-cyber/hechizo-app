@@ -139,6 +139,28 @@
     .detail-name { font-size:12px; color:var(--muted); }
     .detail-val { font-size:12px; color:var(--danger); font-weight:500; }
     .detail-val.pos { color:var(--success); }
+    /* Pendientes de pago: pantalla para reclamarlos por WhatsApp */
+    .pend-link { cursor:pointer; -webkit-tap-highlight-color:transparent; text-decoration:underline dotted; text-underline-offset:3px; }
+    .pend-overlay { position:fixed; inset:0; z-index:50; background:var(--bg); overflow-y:auto; padding:calc(env(safe-area-inset-top,0px) + 16px) 20px calc(env(safe-area-inset-bottom,0px) + 24px); }
+    .pend-head { display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+    .pend-back { background:transparent; border:1px solid var(--border); border-radius:20px; padding:6px 12px; color:var(--muted); font-size:13px; font-family:inherit; cursor:pointer; }
+    .pend-titulo { font-family:"DM Serif Display",serif; font-size:22px; color:var(--text); }
+    .pend-sub { font-size:12px; color:var(--muted); margin-bottom:14px; }
+    .pend-lista { display:flex; flex-direction:column; gap:10px; }
+    .pend-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px; }
+    .pend-card.reclamado { border-color:rgba(52,211,153,.35); }
+    .pend-fila1 { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+    .pend-nombre { font-size:15px; font-weight:500; color:var(--text); }
+    .pend-total { font-size:15px; font-weight:500; color:#f59e0b; white-space:nowrap; }
+    .pend-meta { font-size:12px; color:var(--muted); margin-top:3px; }
+    .pend-prods { font-size:12px; color:var(--muted); margin-top:6px; line-height:1.4; }
+    .pend-acciones { display:flex; gap:8px; margin-top:12px; align-items:center; flex-wrap:wrap; }
+    .pend-wa { flex:1; border:none; border-radius:12px; padding:10px 12px; background:#25d366; color:#06281a; font-size:14px; font-weight:500; font-family:inherit; cursor:pointer; }
+    .pend-wa.ya { background:transparent; color:var(--success); border:1px solid rgba(52,211,153,.4); }
+    .pend-wa:disabled { opacity:.4; cursor:not-allowed; }
+    .pend-desc { border:1px solid var(--border); border-radius:12px; padding:10px 12px; background:transparent; color:var(--muted); font-size:13px; font-family:inherit; cursor:pointer; }
+    .pend-toggle { margin-top:18px; background:transparent; border:none; color:var(--muted); font-size:12px; letter-spacing:1.5px; text-transform:uppercase; font-family:inherit; cursor:pointer; padding:4px 0; }
+    .pend-card.descartado { opacity:.6; }
   </style>
 </head>
 <body>
@@ -186,14 +208,14 @@
         <div class="ventas-label">Ventas de hoy</div>
         <div class="ventas-value" id="ventas-hoy-total">—</div>
         <div class="ventas-sub" id="ventas-hoy-cant"></div>
-        <div style="font-size:12px;color:#f59e0b;margin-top:3px;" id="ventas-hoy-pendiente"></div>
+        <div style="font-size:12px;color:#f59e0b;margin-top:3px;" id="ventas-hoy-pendiente" class="pend-link" onclick="abrirPendientes()"></div>
       </div>
       <div class="kpi-row">
         <div class="kpi-card">
           <div class="kpi-label">Ayer</div>
           <div class="kpi-value" id="ventas-ayer-total">—</div>
           <div style="font-size:11px;color:var(--muted);margin-top:4px;" id="ventas-ayer-cant"></div>
-          <div style="font-size:11px;color:#f59e0b;margin-top:2px;" id="ventas-ayer-pendiente"></div>
+          <div style="font-size:11px;color:#f59e0b;margin-top:2px;" id="ventas-ayer-pendiente" class="pend-link" onclick="abrirPendientes()"></div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Variación</div>
@@ -313,6 +335,15 @@
         <button class="refresh-btn" id="ventas-btn-est" onclick="cargarEstadisticas(true)">↻ Actualizar estadísticas</button>
       </div>
     </footer>
+  </div>
+
+  <div id="pend-overlay" class="pend-overlay hidden">
+    <div class="pend-head">
+      <button class="pend-back" onclick="cerrarPendientes()">← Volver</button>
+      <div class="pend-titulo">Pendientes de pago</div>
+    </div>
+    <div class="pend-sub" id="pend-sub">Últimos 30 días</div>
+    <div id="pend-contenido"></div>
   </div>
 
 <script>
@@ -2278,7 +2309,7 @@
         <div class="hero-card">
           <div class="hero-label">${labelVentas}</div>
           <div class="hero-value" style="font-size:28px">${cantidadTotal > 0 ? cantidadTotal.toLocaleString("es-AR") : "—"}</div>
-          <div class="hero-margin">pedidos pagados${pendientes > 0 ? `<br><span style="color:#f59e0b">${pendientes} pendientes de pago</span>` : ""}</div>
+          <div class="hero-margin">pedidos pagados${pendientes > 0 ? `<br><span style="color:#f59e0b" class="pend-link" onclick="abrirPendientes()">${pendientes} pendientes de pago</span>` : ""}</div>
         </div>
       </div>
       <div class="breakdown-card">
@@ -2552,6 +2583,161 @@
     }
     _ocultaDesde = 0;
   });
+
+  // ===================== PENDIENTES DE PAGO =====================
+  // Lista de pedidos sin pagar (últimos 30 días) con botón de WhatsApp y mensaje armado.
+  // Descartados y reclamados se guardan en Supabase vía ventas-service (se ven igual en
+  // cualquier celu). El mensaje se manda a mano: el botón solo abre el chat con el texto.
+  const PENDIENTES_URL = "https://hechizo-ventas-service-production.up.railway.app/pendientes";
+  let pendLista = [];
+  let pendVerDescartados = false;
+
+  function escHtml(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function pendFecha(iso) {
+    // TN manda "+0000" sin dos puntos; Safari no lo entiende así
+    return new Date(String(iso || "").replace(/([+-]\d\d)(\d\d)$/, "$1:$2"));
+  }
+  function pendDia(iso) {
+    return pendFecha(iso).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "numeric" });
+  }
+  function pendHace(iso) {
+    const h = (Date.now() - pendFecha(iso).getTime()) / 36e5;
+    if (h < 1) return "hace un rato";
+    if (h < 24) return `hace ${Math.floor(h)} h`;
+    const d = Math.floor(h / 24);
+    return d === 1 ? "hace 1 día" : `hace ${d} días`;
+  }
+  function pendPrimerNombre(n) {
+    const p = String(n || "").trim().split(/\s+/)[0] || "";
+    return p ? p.charAt(0).toUpperCase() + p.slice(1).toLowerCase() : "";
+  }
+
+  function pendMensaje(p) {
+    const hola = p.nombre ? `¡Hola ${pendPrimerNombre(p.nombre)}! ✨` : "¡Hola! ✨";
+    const pedido = `tu pedido #${p.numero} del ${pendDia(p.creado)} por ${fmt(p.total)}`;
+    if (p.medio_tipo === "transferencia") {
+      return `${hola} Te escribimos de Hechizo Bijou 💜\n\n` +
+        `Vimos ${pedido} y todavía no nos figura la transferencia.\n\n` +
+        `Si ya la hiciste, ¿nos pasás el comprobante por acá así lo preparamos? 🙌\n` +
+        `Y si tuviste alguna duda o inconveniente, contanos que te ayudamos. ¡Gracias!`;
+    }
+    if (p.medio_tipo === "efectivo") {
+      return `${hola} Te escribimos de Hechizo Bijou 💜\n\n` +
+        `Tenemos reservado ${pedido}, para abonar en efectivo en el showroom de Villa Devoto.\n\n` +
+        `¿Cuándo te queda cómodo pasar a retirarlo? Así te lo dejamos listo 🙌 ¡Gracias!`;
+    }
+    const medio = p.medio ? ` con ${p.medio}` : "";
+    return `${hola} Te escribimos de Hechizo Bijou 💜\n\n` +
+      `Vimos ${pedido} y el pago${medio} todavía figura pendiente.\n\n` +
+      `¿Pudiste completarlo? Si tuviste algún inconveniente, contanos y te ayudamos a terminarlo 🙌 ¡Gracias!`;
+  }
+
+  async function abrirPendientes() {
+    const ov = document.getElementById("pend-overlay");
+    if (ov.classList.contains("hidden")) {
+      ov.classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+      history.pushState({ pend: 1 }, "");
+    }
+    document.getElementById("pend-contenido").innerHTML =
+      `<div class="state-screen"><div class="spinner"></div><div class="state-text">Buscando pedidos pendientes…</div></div>`;
+    try {
+      const r = await fetchConClave(PENDIENTES_URL + "?t=" + Date.now(), { cache: "no-store" });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Error");
+      pendLista = j.pendientes || [];
+      renderPendientes();
+    } catch (e) {
+      document.getElementById("pend-contenido").innerHTML =
+        `<div class="state-screen"><div class="state-text">No se pudieron traer los pendientes (${escHtml(e.message)})</div>
+         <button class="retry-btn" onclick="abrirPendientes()">Reintentar</button></div>`;
+    }
+  }
+
+  function cerrarPendientes() {
+    if (history.state && history.state.pend) history.back();
+    else ocultarPendientes();
+  }
+  function ocultarPendientes() {
+    document.getElementById("pend-overlay").classList.add("hidden");
+    document.body.style.overflow = "";
+  }
+  window.addEventListener("popstate", () => {
+    if (!document.getElementById("pend-overlay").classList.contains("hidden")) ocultarPendientes();
+  });
+
+  function tarjetaPendiente(p) {
+    const prods = (p.productos || []).join(" · ");
+    const reclamado = p.reclamado_en
+      ? `✓ Reclamado el ${pendDia(p.reclamado_en)} · reenviar`
+      : "💬 Reclamar por WhatsApp";
+    const botonWa = p.whatsapp
+      ? `<button class="pend-wa ${p.reclamado_en ? "ya" : ""}" onclick="pendWhatsapp(${p.id})">${reclamado}</button>`
+      : `<button class="pend-wa" disabled>Sin teléfono</button>`;
+    const botonDesc = p.descartado
+      ? `<button class="pend-desc" onclick="pendAccion(${p.id}, 'restaurar')">Restaurar</button>`
+      : `<button class="pend-desc" onclick="pendAccion(${p.id}, 'descartar')">Descartar</button>`;
+    return `<div class="pend-card ${p.reclamado_en ? "reclamado" : ""} ${p.descartado ? "descartado" : ""}">
+      <div class="pend-fila1">
+        <div class="pend-nombre">${escHtml(p.nombre || "Sin nombre")}</div>
+        <div class="pend-total">${fmt(p.total)}</div>
+      </div>
+      <div class="pend-meta">#${p.numero} · ${pendDia(p.creado)} (${pendHace(p.creado)}) · ${escHtml(p.medio || "—")}</div>
+      <div class="pend-meta">${escHtml(p.telefono || "sin teléfono")}</div>
+      ${prods ? `<div class="pend-prods">${escHtml(prods)}</div>` : ""}
+      <div class="pend-acciones">${p.descartado ? "" : botonWa}${botonDesc}</div>
+    </div>`;
+  }
+
+  function renderPendientes() {
+    const activos = pendLista.filter(p => !p.descartado);
+    const descartados = pendLista.filter(p => p.descartado);
+    const total = activos.reduce((s, p) => s + (p.total || 0), 0);
+    document.getElementById("pend-sub").textContent = activos.length
+      ? `Últimos 30 días · ${activos.length} para reclamar · ${fmt(total)}`
+      : "Últimos 30 días";
+    let html = activos.length
+      ? `<div class="pend-lista">${activos.map(tarjetaPendiente).join("")}</div>`
+      : `<div class="state-screen"><div class="state-text">No hay pedidos para reclamar ✨</div></div>`;
+    if (descartados.length) {
+      html += `<button class="pend-toggle" onclick="pendVerDescartados=!pendVerDescartados;renderPendientes()">
+        ${pendVerDescartados ? "▾" : "▸"} Descartados (${descartados.length})</button>`;
+      if (pendVerDescartados) html += `<div class="pend-lista" style="margin-top:8px">${descartados.map(tarjetaPendiente).join("")}</div>`;
+    }
+    document.getElementById("pend-contenido").innerHTML = html;
+  }
+
+  function pendWhatsapp(id) {
+    const p = pendLista.find(x => x.id === id);
+    if (!p) return;
+    window.open(`https://wa.me/${p.whatsapp}?text=${encodeURIComponent(pendMensaje(p))}`, "_blank");
+    p.reclamado_en = new Date().toISOString();
+    renderPendientes();
+    pendGuardar(p, "reclamado");
+  }
+
+  function pendAccion(id, accion) {
+    const p = pendLista.find(x => x.id === id);
+    if (!p) return;
+    p.descartado = accion === "descartar";
+    renderPendientes();
+    pendGuardar(p, accion);
+  }
+
+  async function pendGuardar(p, accion) {
+    try {
+      const r = await fetchConClave(`${PENDIENTES_URL}/${p.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion, numero: p.numero }),
+      });
+      if (!r.ok) throw new Error();
+    } catch (e) {
+      alert("No se pudo guardar el cambio del pedido #" + p.numero + ". Probá de nuevo.");
+    }
+  }
 
   restaurarVentasLocal();
   restaurarEstLocal();
