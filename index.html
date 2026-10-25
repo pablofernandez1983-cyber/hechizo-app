@@ -169,6 +169,14 @@
     .pend-vence { font-size:12px; color:var(--success); margin-top:3px; }
     .pend-borrador { margin-top:12px; border:1px dashed rgba(37,211,102,.5); border-radius:12px; padding:12px; font-size:13px; color:var(--text); }
     .pend-borrador .pend-acciones { margin-top:10px; }
+    .pend-sel { flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:transparent; color:transparent; font-size:18px; font-family:inherit; cursor:pointer; }
+    .pend-sel.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .pend-todos { margin:-2px 0 8px; background:transparent; border:none; color:var(--accent); font-size:12px; font-family:inherit; cursor:pointer; padding:2px 0; }
+    .pend-barra { position:sticky; bottom:calc(env(safe-area-inset-bottom,0px) + 8px); margin-top:16px; display:flex; gap:8px; padding:10px; background:var(--card); border:1px solid var(--accent); border-radius:16px; box-shadow:0 6px 24px rgba(0,0,0,.35); }
+    .pend-cola { position:sticky; top:0; z-index:2; margin-bottom:14px; padding:12px 14px; background:var(--card); border:1px solid #25d366; border-radius:16px; box-shadow:0 6px 24px rgba(0,0,0,.35); font-size:14px; color:var(--text); }
+    .pend-cola .pend-acciones { margin-top:10px; }
+    .pend-cola .pend-meta { margin-top:6px; }
+    .pend-cola.fin { border-color:var(--success); }
     .pend-nombre { font-size:15px; font-weight:500; color:var(--text); }
     .pend-total { font-size:15px; font-weight:500; color:#f59e0b; white-space:nowrap; }
     .pend-meta { font-size:12px; color:var(--muted); margin-top:3px; }
@@ -2621,6 +2629,11 @@
   // localStorage por si la app se recarga mientras se está en WhatsApp.
   let pendBorradores = new Set((() => { try { return JSON.parse(localStorage.getItem("hechizo_pend_borradores") || "[]"); } catch (e) { return []; } })());
   function pendGuardarBorradores() { try { localStorage.setItem("hechizo_pend_borradores", JSON.stringify([...pendBorradores])); } catch (e) {} }
+  // Modo cola: se tildan varios y se reclaman uno detrás del otro. Al contestar "¿Lo enviaste?"
+  // se abre solo el siguiente chat (WhatsApp abre de a un chat, no se pueden abrir juntos).
+  let pendSeleccion = new Set();
+  let pendCola = (() => { try { return JSON.parse(localStorage.getItem("hechizo_pend_cola") || "null"); } catch (e) { return null; } })();
+  function pendGuardarCola() { try { pendCola ? localStorage.setItem("hechizo_pend_cola", JSON.stringify(pendCola)) : localStorage.removeItem("hechizo_pend_cola"); } catch (e) {} }
 
   function escHtml(s) {
     return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -2756,7 +2769,7 @@
               <button class="pend-desc" onclick="pendBorradorEnviado(${p.id}, false)">No</button>
             </div>
           </div>`
-        : `<div class="pend-acciones">${p.descartado ? "" : botonWa}${botonDesc}</div>
+        : `<div class="pend-acciones">${pendSeleccionable(p) && !pendCola ? `<button class="pend-sel ${pendSeleccion.has(p.id) ? "on" : ""}" onclick="pendTildar(${p.id})" aria-label="Seleccionar">✓</button>` : ""}${p.descartado ? "" : botonWa}${botonDesc}</div>
            ${vencido || (efectivo && preparado) ? pendBloqueCancelar(p) : ""}`}
     </div>`;
   }
@@ -2812,9 +2825,11 @@
     document.getElementById("pend-sub").textContent = activos.length
       ? `Últimos 30 días · plazo de pago ${PEND_PLAZO_H} h`
       : "Últimos 30 días";
-    let html = "";
+    let html = pendBannerCola();
+    const vencSel = vencidos.filter(pendSeleccionable);
     if (vencidos.length) {
       html += `<div class="pend-seccion vencido"><span>Vencidos · para reclamar (${vencidos.length})</span><small>${suma(vencidos)}</small></div>
+        ${vencSel.length > 1 && !pendCola ? `<button class="pend-todos" onclick="pendTildarTodos([${vencSel.map(p => p.id).join(",")}])">Seleccionar los ${vencSel.length} vencidos</button>` : ""}
         <div class="pend-lista">${vencidos.map(tarjetaPendiente).join("")}</div>`;
     }
     if (enPlazo.length) {
@@ -2831,7 +2846,86 @@
         ${pendVerDescartados ? "▾" : "▸"} Descartados (${descartados.length})</button>`;
       if (pendVerDescartados) html += `<div class="pend-lista" style="margin-top:8px">${descartados.map(tarjetaPendiente).join("")}</div>`;
     }
+    // Barra de abajo cuando hay tildados (lo que ya no está en la lista no cuenta)
+    for (const id of [...pendSeleccion]) if (!pendLista.some(p => p.id === id && pendSeleccionable(p))) pendSeleccion.delete(id);
+    if (pendSeleccion.size && !pendCola) {
+      html += `<div class="pend-barra">
+        <button class="pend-wa" onclick="pendIniciarCola()">💬 Reclamar ${pendSeleccion.size === 1 ? "1 seleccionado" : `los ${pendSeleccion.size} seleccionados`}</button>
+        <button class="pend-desc" onclick="pendSeleccion.clear();renderPendientes()">Limpiar</button>
+      </div>`;
+    }
     document.getElementById("pend-contenido").innerHTML = html;
+  }
+
+  function pendSeleccionable(p) {
+    return !p.descartado && p.whatsapp && !(pendEsEfectivo(p) && (!p.preparacion || p.preparacion === "unpacked"));
+  }
+  function pendTildar(id) {
+    pendSeleccion.has(id) ? pendSeleccion.delete(id) : pendSeleccion.add(id);
+    renderPendientes();
+  }
+  function pendTildarTodos(ids) {
+    ids.forEach(id => pendSeleccion.add(id));
+    renderPendientes();
+  }
+
+  function pendIniciarCola() {
+    // Mismo orden que la pantalla: del más viejo al más nuevo
+    const ids = [...pendLista].sort((a, b) => pendFecha(a.creado) - pendFecha(b.creado))
+      .filter(p => pendSeleccion.has(p.id)).map(p => p.id);
+    if (!ids.length) return;
+    pendSeleccion.clear();
+    pendCola = { ids, idx: 0, enviados: 0, salteados: 0 };
+    pendGuardarCola();
+    pendWhatsapp(ids[0]);
+  }
+
+  // Avanza la cola después de contestar "¿Lo enviaste?" del pedido actual
+  function pendAvanzarCola(id, enviado) {
+    if (!pendCola || pendCola.fin || pendCola.ids[pendCola.idx] !== id) return;
+    enviado ? pendCola.enviados++ : pendCola.salteados++;
+    pendCola.idx++;
+    while (pendCola.idx < pendCola.ids.length && !pendLista.some(p => p.id === pendCola.ids[pendCola.idx])) {
+      pendCola.idx++;  // se canceló o desapareció mientras tanto
+    }
+    if (pendCola.idx < pendCola.ids.length) {
+      pendGuardarCola();
+      pendWhatsapp(pendCola.ids[pendCola.idx]);
+    } else {
+      pendCola.fin = true;
+      pendGuardarCola();
+    }
+  }
+
+  function pendDetenerCola() {
+    pendCola = null;
+    pendGuardarCola();
+    renderPendientes();
+  }
+
+  function pendBannerCola() {
+    if (!pendCola) return "";
+    const c = pendCola, total = c.ids.length;
+    const resumen = `${c.enviados} ${c.enviados === 1 ? "enviado" : "enviados"} · ${c.salteados} ${c.salteados === 1 ? "salteado" : "salteados"}`;
+    if (c.fin) {
+      return `<div class="pend-cola fin">✓ Cola terminada: ${resumen}
+        <div class="pend-acciones"><button class="pend-desc" onclick="pendDetenerCola()">Listo</button></div></div>`;
+    }
+    const p = pendLista.find(x => x.id === c.ids[c.idx]);
+    if (!p) { pendCola = null; pendGuardarCola(); return ""; }
+    // La pregunta va también acá arriba para no tener que buscar la tarjeta
+    const pregunta = pendBorradores.has(p.id)
+      ? `<div class="pend-acciones">
+          <button class="pend-wa" onclick="pendBorradorEnviado(${p.id}, true)">Sí, lo envié</button>
+          <button class="pend-desc" onclick="pendBorradorEnviado(${p.id}, false)">No, saltear</button>
+        </div>`
+      : `<div class="pend-acciones"><button class="pend-wa" onclick="pendWhatsapp(${p.id})">💬 Abrir chat de ${escHtml(pendPrimerNombre(p.nombre) || "#" + p.numero)}</button></div>`;
+    return `<div class="pend-cola">
+      <div class="pend-fila1"><b>Cola: ${c.idx + 1} de ${total}</b><button class="pend-cancel" style="margin:0" onclick="pendDetenerCola()">Detener</button></div>
+      <div class="pend-meta">${escHtml(p.nombre || "Sin nombre")} · #${p.numero} · ${fmt(p.total)} — ¿lo enviaste?</div>
+      ${pregunta}
+      <div class="pend-meta">${resumen}</div>
+    </div>`;
   }
 
   function pendWhatsapp(id) {
@@ -2853,6 +2947,7 @@
       pendGuardar(p, "reclamado");
     }
     // Si dijo que no, queda como estaba (si ya se había reclamado antes, ese reclamo sigue valiendo)
+    pendAvanzarCola(id, enviado);
     renderPendientes();
   }
 
