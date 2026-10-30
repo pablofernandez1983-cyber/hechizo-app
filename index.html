@@ -197,6 +197,11 @@
     .pend-confirm .pend-si, .pend-confirm .pend-desc { flex:1; font-size:14px; }
     .pend-si { flex:1; border:none; border-radius:12px; padding:10px 12px; background:var(--danger); color:#fff; font-size:14px; font-weight:500; font-family:inherit; cursor:pointer; }
     .pend-si:disabled { opacity:.5; }
+    .dev-abrir { display:block; width:100%; background:transparent; border:1px solid var(--border); border-radius:14px; padding:12px; color:var(--text); font-size:14px; font-family:inherit; cursor:pointer; }
+    .dev-buscar { display:flex; gap:8px; margin-bottom:14px; }
+    .dev-buscar input { flex:1; min-width:0; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px 12px; color:var(--text); font-size:16px; font-family:inherit; }
+    .dev-buscar button { flex:none; }
+    .dev-texto { width:100%; box-sizing:border-box; margin-top:12px; min-height:150px; background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:10px; color:var(--text); font-size:13px; line-height:1.4; font-family:inherit; resize:vertical; }
   </style>
 </head>
 <body>
@@ -259,6 +264,7 @@
           <div style="font-size:11px;color:var(--muted);margin-top:4px;">hoy vs ayer</div>
         </div>
       </div>
+      <button class="dev-abrir" onclick="abrirDevuelto()">📦 Pedido devuelto · avisar a la clienta</button>
       <div class="chart-wrap hidden" id="chart-wrap">
         <div class="chart-header">
           <div class="section-title">Evolución de ventas</div>
@@ -380,6 +386,19 @@
     </div>
     <div class="pend-sub" id="pend-sub">Últimos 30 días</div>
     <div id="pend-contenido"></div>
+  </div>
+
+  <div id="dev-overlay" class="pend-overlay hidden">
+    <div class="pend-head">
+      <button class="pend-back" onclick="cerrarDevuelto()">← Volver</button>
+      <div class="pend-titulo">Pedido devuelto</div>
+    </div>
+    <div class="pend-sub">Buscá el pedido que volvió para avisarle a la clienta por WhatsApp</div>
+    <form class="dev-buscar" onsubmit="buscarDevuelto();return false">
+      <input id="dev-numero" type="number" inputmode="numeric" placeholder="Número de pedido, ej. 11830">
+      <button class="pend-wa" type="submit">Buscar</button>
+    </form>
+    <div id="dev-contenido"></div>
   </div>
 
 <script>
@@ -3100,6 +3119,88 @@
     } catch (e) {
       alert("No se pudo guardar el cambio del pedido #" + p.numero + ". Probá de nuevo.");
     }
+  }
+
+  // ── Pedido devuelto: el correo devolvió un pedido y hay que avisarle a la clienta ──
+  // Se busca por número en ventas-service y se abre WhatsApp con el texto (editable).
+  const PEDIDO_URL = "https://hechizo-ventas-service-production.up.railway.app/pedido";
+  let devPedido = null;
+
+  function devMensaje(p) {
+    const hola = p.nombre ? `¡Hola ${pendPrimerNombre(p.nombre)}! ✨` : "¡Hola! ✨";
+    return `${hola} Te escribimos de Hechizo Bijou 💜\n\n` +
+      `Te contamos que nos llegó de vuelta tu pedido #${p.numero}: el correo no lo pudo entregar 📦\n\n` +
+      `Si querés que reprogramemos la entrega, avisanos y te decimos cuánto costaría el nuevo envío 🙌 ¡Gracias!`;
+  }
+
+  function abrirDevuelto() {
+    const ov = document.getElementById("dev-overlay");
+    ov.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+    history.pushState({ dev: 1 }, "");
+    const inp = document.getElementById("dev-numero");
+    inp.value = "";
+    devPedido = null;
+    document.getElementById("dev-contenido").innerHTML = "";
+    inp.focus();
+  }
+  function cerrarDevuelto() {
+    if (history.state && history.state.dev) history.back();
+    else ocultarDevuelto();
+  }
+  function ocultarDevuelto() {
+    document.getElementById("dev-overlay").classList.add("hidden");
+    document.body.style.overflow = "";
+  }
+  window.addEventListener("popstate", () => {
+    if (!document.getElementById("dev-overlay").classList.contains("hidden")) ocultarDevuelto();
+  });
+
+  async function buscarDevuelto() {
+    const inp = document.getElementById("dev-numero");
+    const numero = parseInt(String(inp.value).replace(/\D/g, ""), 10);
+    const cont = document.getElementById("dev-contenido");
+    if (!numero) return;
+    inp.blur();
+    devPedido = null;
+    cont.innerHTML = `<div class="state-screen"><div class="spinner"></div><div class="state-text">Buscando el pedido #${numero}…</div></div>`;
+    try {
+      const r = await fetchConClave(`${PEDIDO_URL}/${numero}?t=${Date.now()}`, { cache: "no-store" });
+      const j = await r.json().catch(() => ({}));
+      if (!j.ok) throw new Error(j.error || "Error " + r.status);
+      devPedido = j.pedido;
+      renderDevuelto();
+    } catch (e) {
+      cont.innerHTML = `<div class="pend-meta" style="padding:16px 0;text-align:center">${escHtml(e.message)}</div>`;
+    }
+  }
+
+  function renderDevuelto() {
+    const p = devPedido;
+    const prods = (p.productos || []).join(" · ");
+    const aviso = p.estado === "cancelled" ? `<div class="pend-vence" style="color:var(--danger)">⚠ Este pedido está cancelado</div>` : "";
+    document.getElementById("dev-contenido").innerHTML = `<div class="pend-card">
+      <div class="pend-fila1">
+        <div class="pend-nombre">${escHtml(p.nombre || "Sin nombre")}</div>
+        <div class="pend-total" style="color:var(--text)">${fmt(p.total)}</div>
+      </div>
+      <div class="pend-meta">#${p.numero} · ${pendDia(p.creado)} · ${escHtml(p.medio || "—")}</div>
+      ${aviso}
+      ${p.envio ? `<div class="pend-meta">🚚 ${escHtml(p.envio)}</div>` : ""}
+      ${p.direccion ? `<div class="pend-meta">📍 ${escHtml(p.direccion)}</div>` : ""}
+      <div class="pend-meta">${escHtml(p.telefono || "sin teléfono")}</div>
+      ${prods ? `<div class="pend-prods">${escHtml(prods)}</div>` : ""}
+      <textarea class="dev-texto" id="dev-texto">${escHtml(devMensaje(p))}</textarea>
+      <div class="pend-acciones">${p.whatsapp
+        ? `<button class="pend-wa" onclick="devWhatsapp()">💬 Avisar por WhatsApp</button>`
+        : `<button class="pend-wa" disabled>Sin teléfono</button>`}</div>
+    </div>`;
+  }
+
+  function devWhatsapp() {
+    if (!devPedido || !devPedido.whatsapp) return;
+    const texto = document.getElementById("dev-texto").value;
+    window.open(`https://wa.me/${devPedido.whatsapp}?text=${encodeURIComponent(texto)}`, "_blank");
   }
 
   restaurarVentasLocal();
