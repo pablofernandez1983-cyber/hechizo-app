@@ -197,10 +197,13 @@
     .pend-confirm .pend-si, .pend-confirm .pend-desc { flex:1; font-size:14px; }
     .pend-si { flex:1; border:none; border-radius:12px; padding:10px 12px; background:var(--danger); color:#fff; font-size:14px; font-weight:500; font-family:inherit; cursor:pointer; }
     .pend-si:disabled { opacity:.5; }
-    .dev-abrir { display:block; width:100%; background:transparent; border:1px solid var(--border); border-radius:14px; padding:12px; color:var(--text); font-size:14px; font-family:inherit; cursor:pointer; }
+    .dev-abrir { display:block; width:100%; margin-bottom:16px; background:transparent; border:1px solid var(--border); border-radius:14px; padding:12px; color:var(--text); font-size:14px; font-family:inherit; cursor:pointer; }
     .dev-buscar { display:flex; gap:8px; margin-bottom:14px; }
     .dev-buscar input { flex:1; min-width:0; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px 12px; color:var(--text); font-size:16px; font-family:inherit; }
     .dev-buscar button { flex:none; }
+    .dev-dato { font-size:13px; color:var(--text); margin-top:8px; line-height:1.35; word-break:break-word; }
+    .dev-dato span { display:block; font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
+    .dev-dato a { color:var(--accent); font-family:monospace; font-size:14px; }
     .dev-texto { width:100%; box-sizing:border-box; margin-top:12px; min-height:150px; background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:10px; color:var(--text); font-size:13px; line-height:1.4; font-family:inherit; resize:vertical; }
   </style>
 </head>
@@ -238,6 +241,7 @@
       <button class="nav-tab" id="nav-stock" onclick="switchTab('stock')">Stock</button>
     </nav>
     <div id="panel-stock" class="hidden" style="padding:16px 20px;">
+      <button class="dev-abrir" onclick="abrirDevuelto()">📦 Pedido devuelto · avisar a la clienta</button>
       <div id="stock-content"></div>
     </div>
     <div id="panel-resultados" class="hidden">
@@ -264,7 +268,6 @@
           <div style="font-size:11px;color:var(--muted);margin-top:4px;">hoy vs ayer</div>
         </div>
       </div>
-      <button class="dev-abrir" onclick="abrirDevuelto()">📦 Pedido devuelto · avisar a la clienta</button>
       <div class="chart-wrap hidden" id="chart-wrap">
         <div class="chart-header">
           <div class="section-title">Evolución de ventas</div>
@@ -3127,10 +3130,14 @@
   let devPedido = null;
 
   function devMensaje(p) {
-    const hola = p.nombre ? `¡Hola ${pendPrimerNombre(p.nombre)}! ✨` : "¡Hola! ✨";
-    return `${hola} Te escribimos de Hechizo Bijou 💜\n\n` +
-      `Te contamos que nos llegó de vuelta tu pedido #${p.numero}: el correo no lo pudo entregar 📦\n\n` +
-      `Si querés que reprogramemos la entrega, avisanos y te decimos cuánto costaría el nuevo envío 🙌 ¡Gracias!`;
+    const nombre = pendPrimerNombre(p.destinataria || p.nombre);
+    // Lo que costó el envío original; si no se sabe, queda para completar a mano
+    const costo = p.envio_costo ? fmt(p.envio_costo) : "$___";
+    return `¡Hola${nombre ? " " + nombre : ""}! ✨ Te escribo de Hechizo Bijou en relación a tu pedido #${p.numero} 💜\n\n` +
+      `El correo no lo pudo entregar y ya lo recibí de vuelta en mi domicilio 📦\n\n` +
+      `Si estás interesada en que te lo vuelva a enviar, el nuevo envío te sale ${costo}.\n` +
+      `El alias para hacer el pago es *hechizo.bijou*\n\n` +
+      `¡Gracias! 🙌`;
   }
 
   function abrirDevuelto() {
@@ -3177,7 +3184,7 @@
 
   function renderDevuelto() {
     const p = devPedido;
-    const prods = (p.productos || []).join(" · ");
+    const prods = (p.contenido || p.productos || []).join(" · ");
     const aviso = p.estado === "cancelled" ? `<div class="pend-vence" style="color:var(--danger)">⚠ Este pedido está cancelado</div>` : "";
     document.getElementById("dev-contenido").innerHTML = `<div class="pend-card">
       <div class="pend-fila1">
@@ -3186,10 +3193,15 @@
       </div>
       <div class="pend-meta">#${p.numero} · ${pendDia(p.creado)} · ${escHtml(p.medio || "—")}</div>
       ${aviso}
-      ${p.envio ? `<div class="pend-meta">🚚 ${escHtml(p.envio)}</div>` : ""}
-      ${p.direccion ? `<div class="pend-meta">📍 ${escHtml(p.direccion)}</div>` : ""}
+      ${p.destinataria && p.destinataria !== p.nombre ? `<div class="pend-meta">Destinataria: ${escHtml(p.destinataria)}</div>` : ""}
       <div class="pend-meta">${escHtml(p.telefono || "sin teléfono")}</div>
-      ${prods ? `<div class="pend-prods">${escHtml(prods)}</div>` : ""}
+      <div class="dev-dato"><span>Seguimiento</span>${p.seguimiento
+        ? (p.seguimiento_url ? `<a href="${escHtml(p.seguimiento_url)}" target="_blank" rel="noopener">${escHtml(p.seguimiento)}</a>` : escHtml(p.seguimiento))
+        : "sin código"}</div>
+      <div class="dev-dato"><span>Contenido</span>${escHtml(prods || "—")}</div>
+      ${p.envio ? `<div class="dev-dato"><span>Envío</span>${escHtml(p.envio)}${p.envio_costo ? " · " + fmt(p.envio_costo) : ""}</div>` : ""}
+      ${p.direccion ? `<div class="dev-dato"><span>Destino</span>${escHtml(p.direccion)}</div>` : ""}
+      ${p.despachado ? `<div class="dev-dato"><span>Despachado</span>${pendDia(p.despachado)}</div>` : ""}
       <textarea class="dev-texto" id="dev-texto">${escHtml(devMensaje(p))}</textarea>
       <div class="pend-acciones">${p.whatsapp
         ? `<button class="pend-wa" onclick="devWhatsapp()">💬 Avisar por WhatsApp</button>`
