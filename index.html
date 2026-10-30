@@ -3134,9 +3134,8 @@
     // Lo que costó el envío original; si no se sabe, queda para completar a mano
     const costo = p.envio_costo ? fmt(p.envio_costo) : "$___";
     return `¡Hola${nombre ? " " + nombre : ""}! ✨ Te escribo de Hechizo Bijou en relación a tu pedido #${p.numero} 💜\n\n` +
-      `El correo no lo pudo entregar y ya lo recibí de vuelta en mi domicilio 📦\n\n` +
-      `Si estás interesada en que te lo vuelva a enviar, el nuevo envío te sale ${costo}.\n` +
-      `El alias para hacer el pago es *hechizo.bijou*\n\n` +
+      `El paquete fue devuelto a mi domicilio, dado que se venció el plazo para su retiro en el correo 📦\n\n` +
+      `Avisame para coordinar un nuevo envío. El valor sería ${costo} y el alias para hacer la transferencia es *hechizo.bijou*, así puedo sacar la nueva etiqueta de envío.\n\n` +
       `¡Gracias! 🙌`;
   }
 
