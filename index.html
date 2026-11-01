@@ -454,7 +454,7 @@
       <button class="pend-back" onclick="cerrarEnvios()">← Volver</button>
       <div class="pend-titulo">Paquetes en sucursal</div>
     </div>
-    <div class="pend-sub" id="env-sub">Correo Argentino · se revisa todos los días a las 7</div>
+    <div class="pend-sub" id="env-sub">Correo Argentino y Andreani · se revisa todos los días a las 7</div>
     <div class="env-switches">
       <label class="env-sw"><input type="checkbox" id="env-sw-mails" onchange="envGuardarConfig()"><span class="env-sl"></span>
         <div><b>Mails automáticos a las clientas</b><small>Al 4º día en sucursal (“te quedan 3 días”) y cuando el Correo no encontró a nadie en el domicilio</small></div></label>
@@ -3091,13 +3091,13 @@
     const j = envDatos;
     document.getElementById("env-sw-mails").checked = !!j.mails_activos;
     document.getElementById("env-sw-wa").checked = !!j.whatsapp_activo;
-    document.getElementById("env-sub").textContent = "Correo Argentino · se revisa todos los días a las 7"
+    document.getElementById("env-sub").textContent = "Correo Argentino y Andreani · se revisa todos los días a las 7"
       + (j.ultima_revision ? ` · última: ${envFecha(j.ultima_revision)} ${new Date(j.ultima_revision).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}` : "");
     const suc = j.paquetes.filter(p => p.estado === "en_sucursal");
     const dom = j.paquetes.filter(p => p.estado === "domicilio_cerrado");
     const dev = j.paquetes.filter(p => p.estado === "devuelto");
     const card = p => {
-      const urg = p.dias_en_sucursal >= 5;
+      const urg = p.dias_restantes <= 1;
       const mail = p.mail_recordatorio_at ? `📧 Recordatorio enviado el ${envFecha(p.mail_recordatorio_at)}`
                  : p.mail_domicilio_at ? `📧 Aviso enviado el ${envFecha(p.mail_domicilio_at)}` : "";
       const wa = j.whatsapp_activo && p.toca_whatsapp && p.whatsapp
@@ -3107,13 +3107,13 @@
         ? `<div class="env-dias ${urg ? "urgente" : ""}"><b>${p.dias_en_sucursal + 1}º</b><small>día</small></div>`
         : `<div class="env-dias"><b>🏠</b><small>cerrado</small></div>`;
       const info = p.estado === "en_sucursal"
-        ? `${escHtml(p.sucursal || "Sucursal")}${p.sucursal_dir ? " · " + escHtml(p.sucursal_dir) : ""}<br>El Correo lo devolvería ~${envFecha(p.devolucion_estimada + "T12:00:00")}`
+        ? `${escHtml(p.sucursal || "Sucursal")}${p.sucursal_dir ? " · " + escHtml(p.sucursal_dir) : ""}<br>${p.dias_restantes > 0 ? `Puede retirarlo hasta el ${envFecha(p.limite_retiro + "T12:00:00")} (${p.dias_restantes === 1 ? "queda 1 día" : "quedan " + p.dias_restantes + " días"})` : p.dias_restantes === 0 ? "<b>Hoy es el último día para retirarlo</b>" : "Ya pasó el plazo: lo devolverían en cualquier momento"}`
         : `${escHtml(p.ultimo_evento || "")} · ${envFecha(p.domicilio_cerrado_at)}`;
       return `<div class="pend-card"><div class="pend-cuerpo">${izq}<div class="pend-info">
-        <div class="pend-fila1"><b>${escHtml(p.cliente || "Clienta")}</b><span class="pend-meta">#${p.numero}</span></div>
+        <div class="pend-fila1"><b>${escHtml(p.cliente || "Clienta")}</b><span class="pend-meta">#${p.numero} · ${p.carrier === "andreani" ? "Andreani" : "Correo"}</span></div>
         <div class="env-info">${info}</div>
         ${mail ? `<div class="env-mail">${mail}</div>` : ""}${yaWa}
-        <a class="env-info" style="color:var(--accent);text-decoration:none" target="_blank" href="https://www.correoargentino.com.ar/formularios/e-commerce?id=${encodeURIComponent(p.tracking)}">Ver seguimiento ›</a>
+        <a class="env-info" style="color:var(--accent);text-decoration:none" target="_blank" href="${escHtml(p.link)}">Ver seguimiento ›</a>
         ${wa}</div></div></div>`;
     };
     let html = "";
@@ -3144,7 +3144,7 @@
     const p = envDatos.paquetes.find(x => x.order_id === id);
     if (!p) return;
     const nombre = (p.cliente || "").split(" ")[0];
-    const txt = `¡Hola${nombre ? " " + nombre : ""}! Te escribo de Hechizo 💜 Tu pedido #${p.numero} te está esperando en ${p.sucursal || "la sucursal del Correo"}${p.sucursal_dir ? " (" + p.sucursal_dir + ")" : ""} y el Correo lo devuelve en estos días. ¿Podés pasar a retirarlo? Llevá tu DNI 🙏`;
+    const txt = `¡Hola${nombre ? " " + nombre : ""}! Te escribo de Hechizo 💜 Tu pedido #${p.numero} te está esperando en ${p.sucursal || "la sucursal del Correo"}${p.sucursal_dir ? " (" + p.sucursal_dir + ")" : ""} y ${p.carrier === "andreani" ? "Andreani" : "el Correo"} lo devuelve en estos días. ¿Podés pasar a retirarlo? Llevá tu DNI 🙏`;
     window.open("https://wa.me/" + p.whatsapp + "?text=" + encodeURIComponent(txt), "_blank");
     fetchConClave(RAILWAY_URL + "/envios/" + id + "/whatsapp", { method: "POST" }).catch(() => {});
     p.whatsapp_at = new Date().toISOString(); p.toca_whatsapp = false;
