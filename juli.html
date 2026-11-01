@@ -59,6 +59,7 @@
     .btn.sec { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
     .btn.peligro { background: transparent; color: var(--danger); border: 1px solid rgba(198,47,62,.4); }
     .btn + .btn { margin-top: 8px; }
+    .btn.wa { background: #25d366; color: #fff; }
     .acciones { margin-top: 18px; }
     .msg { font-size: 13px; margin-top: 10px; min-height: 18px; text-align: center; }
     .msg.err { color: var(--danger); } .msg.ok { color: var(--ok); }
@@ -126,6 +127,7 @@
 
     <div class="acciones">
       <button class="btn sec" onclick="abrirHabitual()" id="btn-habitual">Mi semana habitual</button>
+      <button class="btn wa hidden" onclick="mandarLinkJuli()" id="btn-wa">💬 Pasarle la página a Juli por WhatsApp</button>
     </div>
     <div class="msg" id="msg"></div>
   </div>
@@ -317,7 +319,26 @@
 
   function aviso(t) { const m = document.getElementById("msg"); m.className = "msg ok"; m.textContent = t; setTimeout(() => { m.textContent = ""; }, 3000); }
 
-  if (EMBED) document.getElementById("btn-habitual").textContent = "Semana habitual de Juli";
+  if (EMBED) {
+    document.getElementById("btn-habitual").textContent = "Semana habitual de Juli";
+    document.getElementById("btn-wa").classList.remove("hidden");
+  }
+  // Arma el mensaje con el link (la clave va en el #, así entra directo) y la clave por si se la pide
+  async function mandarLinkJuli() {
+    const v = window.open("", "_blank");   // se abre ya, si no el celu bloquea la ventana
+    try {
+      const { clave: cj } = await api("/juli/clave");
+      if (!cj) throw new Error("La clave de Juli no está configurada");
+      const link = location.origin + location.pathname + "#k=" + encodeURIComponent(cj);
+      const txt = `¡Hola Juli! 😊 Te paso la página para cargar tus horarios de Hechizo:
+${link}
+
+Tocá un día para cambiar el horario de ese día o marcar que no venís, y en "Mi semana habitual" está tu horario de siempre.
+Si te pide clave, es: ${cj}`;
+      const url = "https://wa.me/?text=" + encodeURIComponent(txt);
+      if (v) v.location = url; else location.href = url;
+    } catch (e) { if (v) v.close(); const m = document.getElementById("msg"); m.className = "msg err"; m.textContent = e.message; }
+  }
   if (clave) { document.getElementById("app").classList.remove("hidden"); cargar(); }
   else if (EMBED) { document.getElementById("app").classList.remove("hidden"); document.getElementById("dias").innerHTML = '<div class="msg err">Falta la clave del reporte en la app</div>'; }
   else mostrarLogin();
