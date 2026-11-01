@@ -203,6 +203,12 @@
     .pend-si { flex:1; border:none; border-radius:12px; padding:10px 12px; background:var(--danger); color:#fff; font-size:14px; font-weight:500; font-family:inherit; cursor:pointer; }
     .pend-si:disabled { opacity:.5; }
     .otros-btn { font-size:12px !important; font-weight:600; padding:5px 10px !important; border:1px solid var(--border) !important; border-radius:14px !important; }
+    .stock-sub { display:flex; gap:6px; margin-bottom:14px; overflow-x:auto; scrollbar-width:none; }
+    .stock-sub::-webkit-scrollbar { display:none; }
+    .stock-sub button { flex:1 0 auto; padding:7px 12px; border-radius:18px; border:1px solid var(--border); background:transparent; color:var(--muted); font-family:inherit; font-size:13px; cursor:pointer; white-space:nowrap; -webkit-tap-highlight-color:transparent; }
+    .stock-sub button.on { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+    #avisos-frame { display:block; width:calc(100% + 40px); margin:0 -20px; border:0; min-height:60vh; background:transparent; }
+    #avisos-frame.hidden { display:none; }
     .otros-lista { display:flex; flex-direction:column; gap:10px; margin-top:6px; }
     .otros-item { display:flex; align-items:center; gap:14px; width:100%; text-align:left; background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px; color:var(--text); font-family:inherit; font-size:15px; cursor:pointer; text-decoration:none; }
     .otros-item .ic { font-size:22px; width:30px; text-align:center; flex-shrink:0; }
@@ -252,7 +258,6 @@
         <div class="brand-name">Hechizo</div>
         <div style="margin-left:auto;display:flex;gap:4px;align-items:center">
           <button class="theme-btn otros-btn" onclick="abrirOtros()" title="Otras funciones" style="margin-left:0">Otros</button>
-          <a href="stock-notif.html" title="Notificaciones de stock" style="display:flex;align-items:center;padding:6px 8px;border-radius:6px;text-decoration:none;color:var(--muted);font-size:16px;line-height:1" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='transparent'">🔔</a>
           <button class="theme-btn" onclick="toggleTheme()" id="theme-btn" style="margin-left:0">☀️</button>
         </div>
       </div>
@@ -267,7 +272,13 @@
       <button class="nav-tab" id="nav-stock" onclick="switchTab('stock')">Stock</button>
     </nav>
     <div id="panel-stock" class="hidden" style="padding:16px 20px;">
+      <div class="stock-sub">
+        <button id="ssub-inventario" class="on" onclick="stockSub('inventario')">Inventario</button>
+        <button id="ssub-clientes" onclick="stockSub('clientes')">Clientas esperando</button>
+        <button id="ssub-productos" onclick="stockSub('productos')">Productos pedidos</button>
+      </div>
       <div id="stock-content"></div>
+      <iframe id="avisos-frame" class="hidden" title="Avisos de stock"></iframe>
     </div>
     <div id="panel-resultados" class="hidden">
       <div class="tabs-wrap" id="tabs"></div>
@@ -416,7 +427,6 @@
       <button class="otros-item" onclick="abrirPendientes()"><div class="ic">💸</div><div><b>Pedidos sin pago</b><span>Reclamarlos por WhatsApp</span></div></button>
       <button class="otros-item" onclick="abrirDevuelto()"><div class="ic">📦</div><div><b>Pedido devuelto</b><span>Avisarle a la clienta</span></div></button>
       <button class="otros-item" onclick="abrirJuli()"><div class="ic">🗓️</div><div><b>Calendario de Juli</b><span>Sus horarios de cada semana</span></div></button>
-      <a class="otros-item" href="stock-notif.html"><div class="ic">🔔</div><div><b>Avisos de stock</b><span>Clientas esperando reposición</span></div></a>
     </div>
   </div>
 
@@ -621,7 +631,7 @@
     ["ventas","resultados","estadisticas","stock"].forEach(t => {
       document.getElementById("panel-" + t).classList.toggle("hidden", t !== tab);
       document.getElementById("nav-" + t).classList.toggle("active", t === tab);
-      document.getElementById("footer-" + t).classList.toggle("hidden", t !== tab);
+      document.getElementById("footer-" + t).classList.toggle("hidden", t !== tab || (t === "stock" && _stockSub !== "inventario"));
     });
     localStorage.setItem("hechizo_tab", tab);
     if (tab === "ventas")        asegurarVentasActualizadas();
@@ -2510,6 +2520,7 @@
     const isLight = document.body.classList.toggle("light");
     document.getElementById("theme-btn").textContent = isLight ? "🌙" : "☀️";
     localStorage.setItem("hechizo_theme", isLight ? "light" : "dark");
+    try { document.getElementById("avisos-frame").contentDocument.body.classList.toggle("light", isLight); } catch (e) {}
   }
 
   if (localStorage.getItem("hechizo_theme") === "light") {
@@ -3189,6 +3200,32 @@
       `El paquete fue devuelto a mi domicilio, dado que se venció el plazo para su retiro en el correo 📦\n\n` +
       `Avisame para coordinar un nuevo envío. El valor sería ${costo} y el alias para hacer la transferencia es hechizo.bijou, así puedo sacar la nueva etiqueta de envío.\n\n` +
       `¡Gracias! 🙌`;
+  }
+
+  // ── Stock: Inventario | Clientas esperando | Productos pedidos ──
+  // Las dos de avisos son stock-notif.html embebida (?embed=1): misma clave y mismo tema por localStorage.
+  let _stockSub = "inventario";
+  function stockSub(sub) {
+    _stockSub = sub;
+    ["inventario", "clientes", "productos"].forEach(x => document.getElementById("ssub-" + x).classList.toggle("on", x === sub));
+    const inv = sub === "inventario";
+    document.getElementById("stock-content").classList.toggle("hidden", !inv);
+    document.getElementById("footer-stock").classList.toggle("hidden", !inv);
+    const fr = document.getElementById("avisos-frame");
+    fr.classList.toggle("hidden", inv);
+    if (inv) return;
+    if (!fr.src) {
+      fr.onload = () => {
+        const doc = fr.contentDocument;
+        const ajustar = () => { fr.style.height = doc.documentElement.scrollHeight + "px"; };
+        new ResizeObserver(ajustar).observe(doc.body);
+        ajustar();
+        fr.contentWindow.mostrarTab(_stockSub);
+      };
+      fr.src = "stock-notif.html?embed=1&tab=" + sub;
+    } else if (fr.contentWindow && fr.contentWindow.mostrarTab) {
+      fr.contentWindow.mostrarTab(sub);
+    }
   }
 
   // ── Otros: menú con las funciones aparte ──
