@@ -216,6 +216,20 @@
     .stock-sub button.on { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
     #avisos-frame { display:block; width:calc(100% + 40px); margin:0 -20px; border:0; min-height:60vh; background:transparent; }
     #avisos-frame.hidden { display:none; }
+    .env-switches { display:flex; flex-direction:column; gap:8px; margin:4px 0 16px; }
+    .env-sw { display:flex; gap:12px; align-items:flex-start; background:var(--card); border:1px solid var(--border); border-radius:14px; padding:12px 14px; cursor:pointer; }
+    .env-sw input { display:none; }
+    .env-sl { flex-shrink:0; width:40px; height:24px; border-radius:12px; background:var(--border); position:relative; transition:background .2s; margin-top:1px; }
+    .env-sl::after { content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; transition:left .2s; box-shadow:0 1px 3px rgba(0,0,0,.25); }
+    .env-sw input:checked + .env-sl { background:var(--accent); }
+    .env-sw input:checked + .env-sl::after { left:19px; }
+    .env-sw b { display:block; font-size:14px; font-weight:600; color:var(--text); }
+    .env-sw small { display:block; font-size:12px; color:var(--muted); margin-top:2px; line-height:1.35; }
+    .env-dias { flex-shrink:0; width:58px; border-radius:12px; padding:8px 0 6px; text-align:center; line-height:1; background:rgba(245,158,11,.14); color:#d97706; }
+    .env-dias.urgente { background:color-mix(in srgb, var(--danger) 15%, transparent); color:var(--danger); }
+    .env-dias b { display:block; font-size:20px; } .env-dias small { font-size:10px; }
+    .env-info { font-size:12px; color:var(--muted); margin-top:3px; line-height:1.4; }
+    .env-mail { font-size:12px; color:var(--success); margin-top:4px; }
     .otros-lista { display:flex; flex-direction:column; gap:10px; margin-top:6px; }
     .otros-item { display:flex; align-items:center; gap:14px; width:100%; text-align:left; background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px; color:var(--text); font-family:inherit; font-size:15px; cursor:pointer; text-decoration:none; }
     .otros-item .ic { font-size:22px; width:30px; text-align:center; flex-shrink:0; }
@@ -421,6 +435,7 @@
     </div>
     <div class="otros-lista">
       <button class="otros-item" onclick="abrirPendientes()"><div class="ic">💸</div><div><b>Pedidos sin pago</b><span id="otros-pend-sub">Reclamarlos por WhatsApp</span></div><div class="otros-n hidden" id="otros-pend-n"></div></button>
+      <button class="otros-item" onclick="abrirEnvios()"><div class="ic">📮</div><div><b>Paquetes en sucursal</b><span id="otros-env-sub">Que no vuelvan por no retirarlos</span></div><div class="otros-n hidden" id="otros-env-n"></div></button>
       <button class="otros-item" onclick="abrirDevuelto()"><div class="ic">📦</div><div><b>Pedido devuelto</b><span>Avisarle a la clienta</span></div></button>
       <button class="otros-item" onclick="abrirJuli()"><div class="ic">🗓️</div><div><b>Calendario de Juli</b><span>Sus horarios de cada semana</span></div></button>
     </div>
@@ -432,6 +447,21 @@
       <div class="pend-titulo">Calendario de Juli</div>
     </div>
     <iframe id="juli-frame" title="Calendario de Juli"></iframe>
+  </div>
+
+  <div id="env-overlay" class="pend-overlay hidden">
+    <div class="pend-head">
+      <button class="pend-back" onclick="cerrarEnvios()">← Volver</button>
+      <div class="pend-titulo">Paquetes en sucursal</div>
+    </div>
+    <div class="pend-sub" id="env-sub">Correo Argentino · se revisa todos los días a las 7</div>
+    <div class="env-switches">
+      <label class="env-sw"><input type="checkbox" id="env-sw-mails" onchange="envGuardarConfig()"><span class="env-sl"></span>
+        <div><b>Mails automáticos a las clientas</b><small>Al 4º día en sucursal (“te quedan 3 días”) y cuando el Correo no encontró a nadie en el domicilio</small></div></label>
+      <label class="env-sw"><input type="checkbox" id="env-sw-wa" onchange="envGuardarConfig()"><span class="env-sl"></span>
+        <div><b>Ofrecerme WhatsApp el día antes de la devolución</b><small>Te aparece el botón acá y suma al puntito del ☰</small></div></label>
+    </div>
+    <div id="env-contenido"></div>
   </div>
 
   <div id="pend-overlay" class="pend-overlay hidden">
@@ -3017,16 +3047,129 @@
     }
   }
 
+  // ── Paquetes en sucursal (Correo) ──
+  let envDatos = null;
+  const envFecha = s => { const d = new Date(s); return d.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "numeric" }); };
+  function envParaWhatsapp() { return envDatos && envDatos.whatsapp_activo ? envDatos.paquetes.filter(p => p.toca_whatsapp).length : 0; }
+  async function cargarEnviosBadge() {
+    if (!claveWeb) return;
+    try {
+      const r = await fetchConClave(RAILWAY_URL + "/envios?t=" + Date.now(), { cache: "no-store" });
+      const j = await r.json();
+      if (j.ok) { envDatos = j; pintarBadgePend(); }
+    } catch (e) {}
+  }
+  function abrirEnvios() {
+    document.getElementById("env-overlay").classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+    history.pushState({ env: 1 }, "");
+    cargarEnvios();
+  }
+  function cerrarEnvios() {
+    if (history.state && history.state.env) history.back();
+    else document.getElementById("env-overlay").classList.add("hidden");
+  }
+  window.addEventListener("popstate", () => {
+    if (!(history.state || {}).env) document.getElementById("env-overlay").classList.add("hidden");
+  });
+  async function cargarEnvios() {
+    const cont = document.getElementById("env-contenido");
+    cont.innerHTML = `<div class="state-screen"><div class="spinner"></div></div>`;
+    try {
+      const r = await fetchConClave(RAILWAY_URL + "/envios?t=" + Date.now(), { cache: "no-store" });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Error");
+      envDatos = j;
+      pintarBadgePend();
+      renderEnvios();
+    } catch (e) {
+      cont.innerHTML = `<div class="state-screen"><div class="state-text">No se pudo cargar (${escHtml(e.message)})</div>
+        <button class="retry-btn" onclick="cargarEnvios()">Reintentar</button></div>`;
+    }
+  }
+  function renderEnvios() {
+    const j = envDatos;
+    document.getElementById("env-sw-mails").checked = !!j.mails_activos;
+    document.getElementById("env-sw-wa").checked = !!j.whatsapp_activo;
+    document.getElementById("env-sub").textContent = "Correo Argentino · se revisa todos los días a las 7"
+      + (j.ultima_revision ? ` · última: ${envFecha(j.ultima_revision)} ${new Date(j.ultima_revision).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}` : "");
+    const suc = j.paquetes.filter(p => p.estado === "en_sucursal");
+    const dom = j.paquetes.filter(p => p.estado === "domicilio_cerrado");
+    const dev = j.paquetes.filter(p => p.estado === "devuelto");
+    const card = p => {
+      const urg = p.dias_en_sucursal >= 5;
+      const mail = p.mail_recordatorio_at ? `📧 Recordatorio enviado el ${envFecha(p.mail_recordatorio_at)}`
+                 : p.mail_domicilio_at ? `📧 Aviso enviado el ${envFecha(p.mail_domicilio_at)}` : "";
+      const wa = j.whatsapp_activo && p.toca_whatsapp && p.whatsapp
+        ? `<button class="pend-wa" style="margin-top:10px" onclick="envWhatsapp(${p.order_id})">💬 Avisarle por WhatsApp</button>` : "";
+      const yaWa = p.whatsapp_at ? `<div class="env-mail">💬 WhatsApp enviado el ${envFecha(p.whatsapp_at)}</div>` : "";
+      const izq = p.estado === "en_sucursal"
+        ? `<div class="env-dias ${urg ? "urgente" : ""}"><b>${p.dias_en_sucursal + 1}º</b><small>día</small></div>`
+        : `<div class="env-dias"><b>🏠</b><small>cerrado</small></div>`;
+      const info = p.estado === "en_sucursal"
+        ? `${escHtml(p.sucursal || "Sucursal")}${p.sucursal_dir ? " · " + escHtml(p.sucursal_dir) : ""}<br>El Correo lo devolvería ~${envFecha(p.devolucion_estimada + "T12:00:00")}`
+        : `${escHtml(p.ultimo_evento || "")} · ${envFecha(p.domicilio_cerrado_at)}`;
+      return `<div class="pend-card"><div class="pend-cuerpo">${izq}<div class="pend-info">
+        <div class="pend-fila1"><b>${escHtml(p.cliente || "Clienta")}</b><span class="pend-meta">#${p.numero}</span></div>
+        <div class="env-info">${info}</div>
+        ${mail ? `<div class="env-mail">${mail}</div>` : ""}${yaWa}
+        <a class="env-info" style="color:var(--accent);text-decoration:none" target="_blank" href="https://www.correoargentino.com.ar/formularios/e-commerce?id=${encodeURIComponent(p.tracking)}">Ver seguimiento ›</a>
+        ${wa}</div></div></div>`;
+    };
+    let html = "";
+    if (suc.length) html += `<div class="pend-seccion vencido"><span>Esperando en sucursal (${suc.length})</span></div><div class="pend-lista">${suc.map(card).join("")}</div>`;
+    if (dom.length) html += `<div class="pend-seccion plazo"><span>No encontró a nadie en el domicilio (${dom.length})</span></div><div class="pend-lista">${dom.map(card).join("")}</div>`;
+    if (!suc.length && !dom.length) html += `<div class="pend-meta" style="padding:16px 0;text-align:center">No hay paquetes esperando en sucursal ✨</div>`;
+    if (dev.length) html += `<div class="pend-seccion"><span>Devueltos en los últimos 15 días (${dev.length})</span></div>
+      <div class="pend-lista">${dev.map(p => `<div class="pend-card"><b>${escHtml(p.cliente || "")}</b> <span class="pend-meta">#${p.numero}</span><div class="env-info">${escHtml(p.sucursal || "")}</div></div>`).join("")}</div>`;
+    html += `<button class="pend-toggle" style="margin-top:14px" onclick="envRevisarAhora(this)">↻ Revisar ahora</button>`;
+    document.getElementById("env-contenido").innerHTML = html;
+  }
+  async function envGuardarConfig() {
+    const body = { mails_activos: document.getElementById("env-sw-mails").checked, whatsapp_activo: document.getElementById("env-sw-wa").checked };
+    try {
+      await fetchConClave(RAILWAY_URL + "/envios/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (envDatos) { Object.assign(envDatos, body); renderEnvios(); pintarBadgePend(); }
+    } catch (e) { document.getElementById("env-sub").textContent = "⚠️ No se pudo guardar: " + e.message; }
+  }
+  async function envRevisarAhora(btn) {
+    btn.disabled = true; btn.textContent = "Revisando con el Correo… (~30 s)";
+    try {
+      await fetchConClave(RAILWAY_URL + "/envios/revisar", { method: "POST" });
+      await new Promise(r => setTimeout(r, 30000));
+    } catch (e) {}
+    cargarEnvios();
+  }
+  function envWhatsapp(id) {
+    const p = envDatos.paquetes.find(x => x.order_id === id);
+    if (!p) return;
+    const nombre = (p.cliente || "").split(" ")[0];
+    const txt = `¡Hola${nombre ? " " + nombre : ""}! Te escribo de Hechizo 💜 Tu pedido #${p.numero} te está esperando en ${p.sucursal || "la sucursal del Correo"}${p.sucursal_dir ? " (" + p.sucursal_dir + ")" : ""} y el Correo lo devuelve en estos días. ¿Podés pasar a retirarlo? Llevá tu DNI 🙏`;
+    window.open("https://wa.me/" + p.whatsapp + "?text=" + encodeURIComponent(txt), "_blank");
+    fetchConClave(RAILWAY_URL + "/envios/" + id + "/whatsapp", { method: "POST" }).catch(() => {});
+    p.whatsapp_at = new Date().toISOString(); p.toca_whatsapp = false;
+    renderEnvios(); pintarBadgePend();
+  }
+  setTimeout(cargarEnviosBadge, 3000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") cargarEnviosBadge(); });
+
   // ── Puntito del menú ☰: pedidos vencidos sin reclamar ──
   function pendPorReclamar() {
     return pendLista.filter(p => !p.descartado && !p.reclamado_en && !pendEsEfectivo(p) && pendVencido(p)).length;
   }
   function pintarBadgePend() {
-    const n = pendPorReclamar();
-    const b = document.getElementById("menu-badge"), o = document.getElementById("otros-pend-n");
-    b.textContent = o.textContent = n > 99 ? "99+" : String(n);
-    b.classList.toggle("hidden", !n);
+    const n = pendPorReclamar(), w = envParaWhatsapp(), tot = n + w;
+    const b = document.getElementById("menu-badge"), o = document.getElementById("otros-pend-n"), oe = document.getElementById("otros-env-n");
+    b.textContent = tot > 99 ? "99+" : String(tot);
+    b.classList.toggle("hidden", !tot);
+    o.textContent = n > 99 ? "99+" : String(n);
     o.classList.toggle("hidden", !n);
+    oe.textContent = String(w);
+    oe.classList.toggle("hidden", !w);
+    if (envDatos) {
+      const ns = envDatos.paquetes.filter(p => p.estado === "en_sucursal").length;
+      document.getElementById("otros-env-sub").textContent = w ? `${w} para avisar por WhatsApp` : ns ? `${ns} esperando en sucursal` : "Que no vuelvan por no retirarlos";
+    }
     document.getElementById("otros-pend-sub").textContent = n ? `${n} vencido${n === 1 ? "" : "s"} para reclamar` : "Reclamarlos por WhatsApp";
   }
   async function actualizarBadgePend() {
@@ -3262,7 +3405,7 @@
   window.addEventListener("popstate", () => {
     const st = history.state || {};
     if (!st.juli) document.getElementById("juli-overlay").classList.add("hidden");
-    if (!st.otros && !st.juli && !st.pend && !st.dev) ocultarOtros();
+    if (!st.otros && !st.juli && !st.pend && !st.dev && !st.env) ocultarOtros();
     else if (!document.getElementById("otros-overlay").classList.contains("hidden")) document.body.style.overflow = "hidden";
   });
 
