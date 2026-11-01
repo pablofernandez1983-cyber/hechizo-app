@@ -217,20 +217,9 @@
     .otros-item b { display:block; font-weight:600; }
     .otros-item span { display:block; font-size:12px; color:var(--muted); margin-top:2px; }
     .otros-item::after { content:"›"; margin-left:auto; color:var(--muted); font-size:20px; }
-    .juli-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:6px 0 10px; }
-    .juli-nav button { width:38px; height:38px; border-radius:50%; border:1px solid var(--border); background:var(--card); color:var(--text); font-size:18px; cursor:pointer; }
-    .juli-nav .t { text-align:center; font-size:14px; } .juli-nav .t b { display:block; } .juli-nav .t span { font-size:12px; color:var(--muted); }
-    .juli-tot { display:flex; justify-content:space-between; align-items:center; background:var(--card); border:1px solid var(--border); border-radius:14px; padding:12px 14px; margin-bottom:10px; }
-    .juli-tot b { font-size:20px; font-weight:600; font-variant-numeric:tabular-nums; } .juli-tot span { font-size:12px; color:var(--muted); }
-    .juli-dia { display:flex; align-items:center; gap:12px; padding:11px 14px; border-bottom:1px solid var(--border); }
-    .juli-dia:last-child { border-bottom:none; }
-    .juli-dia.hoy { background:rgba(192,132,252,.10); }
-    .juli-dia .f { width:42px; text-align:center; line-height:1.1; flex-shrink:0; } .juli-dia .f b { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; } .juli-dia .f span { font-size:18px; font-weight:600; }
-    .juli-dia .h { flex:1; min-width:0; font-size:14px; } .juli-dia .h .al { font-size:12px; color:var(--muted); } .juli-dia .h .nota { font-size:12px; color:var(--accent); margin-top:2px; }
-    .juli-dia.libre .h { color:var(--muted); }
-    .juli-dia .hs { font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
-    .juli-tag { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; padding:2px 6px; border-radius:7px; margin-left:6px; background:rgba(245,158,11,.18); color:#d97706; vertical-align:1px; }
-    .juli-card { background:var(--card); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+    .juli-ov { display:flex; flex-direction:column; padding-bottom:0; overflow:hidden; }
+    .juli-ov.hidden { display:none; }
+    #juli-frame { flex:1; width:calc(100% + 40px); margin:6px -20px 0; border:0; background:transparent; }
     .dev-abrir { display:block; width:100%; margin-bottom:16px; background:transparent; border:1px solid var(--border); border-radius:14px; padding:12px; color:var(--text); font-size:14px; font-family:inherit; cursor:pointer; }
     .dev-buscar { display:flex; gap:8px; margin-bottom:14px; }
     .dev-buscar input { flex:1; min-width:0; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px 12px; color:var(--text); font-size:16px; font-family:inherit; }
@@ -432,18 +421,12 @@
     </div>
   </div>
 
-  <div id="juli-overlay" class="pend-overlay hidden">
+  <div id="juli-overlay" class="pend-overlay juli-ov hidden">
     <div class="pend-head">
       <button class="pend-back" onclick="cerrarJuli()">← Volver</button>
       <div class="pend-titulo">Calendario de Juli</div>
     </div>
-    <div class="pend-sub">Lo que Juli carga en su página de horarios</div>
-    <div class="juli-nav">
-      <button onclick="moverJuli(-1)" aria-label="Semana anterior">‹</button>
-      <div class="t"><b id="juli-tit"></b><span id="juli-sub"></span></div>
-      <button onclick="moverJuli(1)" aria-label="Semana siguiente">›</button>
-    </div>
-    <div id="juli-contenido"></div>
+    <iframe id="juli-frame" title="Calendario de Juli"></iframe>
   </div>
 
   <div id="pend-overlay" class="pend-overlay hidden">
@@ -3251,62 +3234,16 @@
     else if (!document.getElementById("otros-overlay").classList.contains("hidden")) document.body.style.overflow = "hidden";
   });
 
-  // ── Calendario de Juli (solo lectura; ella carga en juli.html) ──
-  const JULI_DIAS = ["", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-  const JULI_MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-  const juliIso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const juliLunes = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
-  const juliMas = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-  const juliH = h => { if (!h) return "0 h"; const t = Math.round(h * 60), hh = Math.floor(t / 60), mm = t % 60; return mm ? `${hh} h ${mm} min` : `${hh} h`; };
-  // El domingo arranca en la semana que viene (la que termina ya no sirve)
-  const juliArranque = () => { const h = new Date(); return juliLunes(h.getDay() === 0 ? juliMas(h, 1) : h); };
-  let juliSemana = juliArranque();
-
+  // ── Calendario de Juli: la misma pantalla que usa ella (juli.html), con la clave del reporte ──
   function abrirJuli() {
     document.getElementById("juli-overlay").classList.remove("hidden");
     document.body.style.overflow = "hidden";
     history.pushState({ juli: 1 }, "");
-    juliSemana = juliArranque();
-    cargarJuli();
+    document.getElementById("juli-frame").src = "juli.html?embed=1&t=" + Date.now();
   }
   function cerrarJuli() {
     if (history.state && history.state.juli) history.back();
     else document.getElementById("juli-overlay").classList.add("hidden");
-  }
-  function moverJuli(n) { juliSemana = juliMas(juliSemana, 7 * n); cargarJuli(); }
-
-  async function cargarJuli() {
-    const l = juliSemana, dom = juliMas(l, 6);
-    const dif = Math.round((l - juliLunes(new Date())) / 864e5 / 7);
-    document.getElementById("juli-tit").textContent = dif === 0 ? "Esta semana" : dif === 1 ? "La semana que viene" : dif === -1 ? "La semana pasada" : "Semana";
-    document.getElementById("juli-sub").textContent = `${l.getDate()} ${JULI_MESES[l.getMonth()]} al ${dom.getDate()} ${JULI_MESES[dom.getMonth()]}`;
-    const cont = document.getElementById("juli-contenido");
-    cont.innerHTML = `<div class="state-screen"><div class="spinner"></div></div>`;
-    try {
-      const r = await fetchConClave(`${RAILWAY_URL}/juli/calendario?desde=${juliIso(l)}&hasta=${juliIso(dom)}`, { cache: "no-store" });
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.error || "Error");
-      const hoy = juliIso(new Date());
-      let tot = 0;
-      const filas = j.dias.map((d, i) => {
-        tot += d.horas;
-        const libre = !d.bloques.length, dow = i + 1;
-        if (libre && dow >= 6 && d.origen === "habitual") return "";
-        const dia = Number(d.fecha.slice(8, 10));
-        return `<div class="juli-dia ${libre ? "libre" : ""} ${d.fecha === hoy ? "hoy" : ""}">
-          <div class="f"><b>${JULI_DIAS[dow]}</b><span>${dia}</span></div>
-          <div class="h">${libre ? "No viene" : d.bloques.map(([a, z]) => `${a} a ${z}`).join(" y ")}${d.origen === "cambio" ? '<span class="juli-tag">Cambio</span>' : ""}
-            ${d.almuerzo_min ? `<div class="al">${d.almuerzo_min} min de almuerzo</div>` : ""}
-            ${d.nota ? `<div class="nota">${escHtml(d.nota)}</div>` : ""}</div>
-          <div class="hs">${libre ? "" : juliH(d.horas)}</div></div>`;
-      }).join("");
-      cont.innerHTML = `<div class="juli-tot"><div><span>Total de la semana</span><br><b>${juliH(tot)}</b></div>
-          <span>Semana habitual: ${juliH(j.horas_semana_tipo)}</span></div>
-        <div class="juli-card">${filas}</div>`;
-    } catch (e) {
-      cont.innerHTML = `<div class="state-screen"><div class="state-text">No se pudo cargar (${escHtml(e.message)})</div>
-        <button class="retry-btn" onclick="cargarJuli()">Reintentar</button></div>`;
-    }
   }
 
   function abrirDevuelto() {

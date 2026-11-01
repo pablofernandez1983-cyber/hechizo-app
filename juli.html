@@ -64,6 +64,17 @@
     .msg.err { color: var(--danger); } .msg.ok { color: var(--ok); }
 
     /* Hoja de edición */
+    /* Embebida en la app (Otros → Calendario de Juli): sin marca, con el tema de la app */
+    body.embed { padding-top: 6px; }
+    body.embed .brand, body.embed #saludo { display: none; }
+    body.dark {
+      --bg: #0e0720; --card: #231540; --card2: #2a1a4d; --accent: #c084fc; --accent2: #818cf8;
+      --text: #f1e9ff; --muted: #9d8ec0; --border: rgba(192,132,252,0.15); --hover: rgba(192,132,252,0.10);
+      --danger: #f87171; --ok: #34d399; font-weight: 400;
+    }
+    body.dark .tag.cambio { background: rgba(245,158,11,.18); color: #fbbf24; }
+    body.dark .velo { background: rgba(0,0,0,.55); }
+    body.dark input[type=time] { color-scheme: dark; }
     .velo { position: fixed; inset: 0; background: rgba(42,18,37,.35); z-index: 40; display: flex; align-items: flex-end; justify-content: center; }
     .hoja { background: var(--bg); width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; border-radius: 22px 22px 0 0;
             padding: 20px 18px calc(env(safe-area-inset-bottom,0px) + 20px); }
@@ -102,8 +113,8 @@
   </div>
 
   <div id="app" class="hidden">
-    <h2>Hola, Juli 👋</h2>
-    <div class="sub">Tocá un día para cambiar el horario de ese día (o marcar que no venís).</div>
+    <h2 id="saludo">Hola, Juli 👋</h2>
+    <div class="sub" id="ayuda">Tocá un día para cambiar el horario de ese día (o marcar que no venís).</div>
 
     <div class="semnav">
       <button onclick="moverSemana(-1)" aria-label="Semana anterior">‹</button>
@@ -114,7 +125,7 @@
     <div class="dias" id="dias"><div class="cargando">Cargando…</div></div>
 
     <div class="acciones">
-      <button class="btn sec" onclick="abrirHabitual()">Mi semana habitual</button>
+      <button class="btn sec" onclick="abrirHabitual()" id="btn-habitual">Mi semana habitual</button>
     </div>
     <div class="msg" id="msg"></div>
   </div>
@@ -136,12 +147,24 @@
     const m = location.hash.match(/k=([^&]+)/);
     if (m) { try { localStorage.setItem(KEY, decodeURIComponent(m[1])); } catch (e) {} history.replaceState(null, "", location.pathname); }
   })();
-  let clave = (() => { try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; } })();
+  // ?embed=1 → abierta desde la app: entra con la clave del reporte (X-Web-Key) y toma el tema de la app
+  const EMBED = new URLSearchParams(location.search).get("embed") === "1";
+  const KEY_USADA = EMBED ? "hechizo_web_key" : KEY;
+  const HEADER = EMBED ? "X-Web-Key" : "X-Juli-Key";
+  if (EMBED) {
+    document.body.classList.add("embed");
+    try { if (localStorage.getItem("hechizo_theme") !== "light") document.body.classList.add("dark"); } catch (e) {}
+    document.getElementById("ayuda").textContent = "Tocá un día para cambiarle el horario a Juli, o “Semana habitual” para el horario fijo.";
+  }
+  let clave = (() => { try { return localStorage.getItem(KEY_USADA) || ""; } catch (e) { return ""; } })();
 
   async function api(path, opts = {}) {
     const res = await fetch(API + path, { ...opts, cache: "no-store",
-      headers: { ...(opts.headers || {}), "X-Juli-Key": clave, "Content-Type": "application/json" } });
-    if (res.status === 401) { try { localStorage.removeItem(KEY); } catch (e) {} clave = ""; mostrarLogin("Clave incorrecta"); throw new Error("401"); }
+      headers: { ...(opts.headers || {}), [HEADER]: clave, "Content-Type": "application/json" } });
+    if (res.status === 401) {
+      if (EMBED) throw new Error("clave del reporte incorrecta");
+      try { localStorage.removeItem(KEY); } catch (e) {} clave = ""; mostrarLogin("Clave incorrecta"); throw new Error("401");
+    }
     const j = await res.json().catch(() => ({}));
     if (!res.ok || j.ok === false) throw new Error(j.error || ("Error " + res.status));
     return j;
@@ -203,7 +226,7 @@
       return `<button class="dia ${libre ? "libre" : ""} ${d.fecha === hoy ? "hoy" : ""}" onclick="editarDia(${i})">
         <div class="f"><b>${DIAS_C[dow]}</b><span>${dt.getDate()}</span></div>
         <div class="h">
-          <div class="hr">${libre ? "No trabajo" : txtBloques(d.bloques)}${d.origen === "cambio" ? '<span class="tag cambio">Cambio</span>' : ""}</div>
+          <div class="hr">${libre ? (EMBED ? "No viene" : "No trabajo") : txtBloques(d.bloques)}${d.origen === "cambio" ? '<span class="tag cambio">Cambio</span>' : ""}</div>
           ${d.almuerzo_min ? `<div class="al">${d.almuerzo_min} min de almuerzo</div>` : ""}
           ${d.nota ? `<div class="nota">${esc(d.nota)}</div>` : ""}
         </div>
@@ -247,10 +270,10 @@
       <div class="sub">${d.origen === "cambio" ? "Este día tiene un cambio cargado." : "Horario habitual. Si cambiás algo, vale solo para este día."}</div>
       <div class="lbl">Horario</div>${htmlBloques("ed-b", bloques)}
       <div class="lbl">Almuerzo</div>${htmlAlmuerzo("ed-a", d.almuerzo_min)}
-      <div class="lbl">Nota (opcional)</div><textarea id="ed-n" maxlength="300" placeholder="Ej.: me voy antes por el médico">${esc(d.nota || "")}</textarea>
+      <div class="lbl">Nota (opcional)</div><textarea id="ed-n" maxlength="300" placeholder="${EMBED ? "Ej.: sale antes por el médico" : "Ej.: me voy antes por el médico"}">${esc(d.nota || "")}</textarea>
       <div class="acciones">
         <button class="btn" onclick="guardarDia(${i})">Guardar</button>
-        <button class="btn peligro" onclick="guardarDia(${i}, true)">No vengo este día</button>
+        <button class="btn peligro" onclick="guardarDia(${i}, true)">${EMBED ? "No viene este día" : "No vengo este día"}</button>
         ${d.origen === "cambio" ? `<button class="btn sec" onclick="volverHabitual(${i})">Volver al horario habitual</button>` : ""}
         <button class="btn sec" onclick="cerrarHoja()">Cancelar</button>
       </div><div class="msg err" id="ed-err"></div>`);
@@ -294,7 +317,10 @@
 
   function aviso(t) { const m = document.getElementById("msg"); m.className = "msg ok"; m.textContent = t; setTimeout(() => { m.textContent = ""; }, 3000); }
 
-  if (clave) { document.getElementById("app").classList.remove("hidden"); cargar(); } else mostrarLogin();
+  if (EMBED) document.getElementById("btn-habitual").textContent = "Semana habitual de Juli";
+  if (clave) { document.getElementById("app").classList.remove("hidden"); cargar(); }
+  else if (EMBED) { document.getElementById("app").classList.remove("hidden"); document.getElementById("dias").innerHTML = '<div class="msg err">Falta la clave del reporte en la app</div>'; }
+  else mostrarLogin();
 </script>
 </body>
 </html>
