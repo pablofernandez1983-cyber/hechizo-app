@@ -3097,7 +3097,7 @@
     const dom = j.paquetes.filter(p => p.estado === "domicilio_cerrado");
     const dev = j.paquetes.filter(p => p.estado === "devuelto");
     const card = p => {
-      const urg = p.dias_restantes <= 1;
+      const urg = p.dias_restantes <= 1 || p.habiles_restantes <= 1;
       const mail = p.mail_recordatorio_at ? `📧 Recordatorio enviado el ${envFecha(p.mail_recordatorio_at)}`
                  : p.mail_domicilio_at ? `📧 Aviso enviado el ${envFecha(p.mail_domicilio_at)}` : "";
       const wa = j.whatsapp_activo && p.toca_whatsapp && p.whatsapp
@@ -3107,7 +3107,7 @@
         ? `<div class="env-dias ${urg ? "urgente" : ""}"><b>${p.dias_en_sucursal + 1}º</b><small>día</small></div>`
         : `<div class="env-dias"><b>🏠</b><small>cerrado</small></div>`;
       const info = p.estado === "en_sucursal"
-        ? `${escHtml(p.sucursal || "Sucursal")}${p.sucursal_dir ? " · " + escHtml(p.sucursal_dir) : ""}<br>${p.dias_restantes > 0 ? `Puede retirarlo hasta el ${envFecha(p.limite_retiro + "T12:00:00")} (${p.dias_restantes === 1 ? "queda 1 día" : "quedan " + p.dias_restantes + " días"})` : p.dias_restantes === 0 ? "<b>Hoy es el último día para retirarlo</b>" : "Ya pasó el plazo: lo devolverían en cualquier momento"}`
+        ? `${escHtml(p.sucursal || "Sucursal")}${p.sucursal_dir ? " · " + escHtml(p.sucursal_dir) : ""}<br>${p.dias_restantes > 0 ? `Puede retirarlo hasta el ${envFecha(p.limite_retiro + "T12:00:00")} (${p.dias_restantes === 1 ? "es mañana" : p.habiles_restantes === 1 ? "queda 1 día hábil" : "quedan " + p.habiles_restantes + " días hábiles"})` : p.dias_restantes === 0 ? "<b>Hoy es el último día para retirarlo</b>" : "Ya pasó el plazo: lo devolverían en cualquier momento"}`
         : `${escHtml(p.ultimo_evento || "")} · ${envFecha(p.domicilio_cerrado_at)}`;
       return `<div class="pend-card"><div class="pend-cuerpo">${izq}<div class="pend-info">
         <div class="pend-fila1"><b>${escHtml(p.cliente || "Clienta")}</b><span class="pend-meta">#${p.numero} · ${p.carrier === "andreani" ? "Andreani" : "Correo"}</span></div>
