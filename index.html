@@ -10,7 +10,7 @@
   <title>Hechizo</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300..700&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -18,19 +18,24 @@
       --danger: #f87171; --success: #34d399;
       --text: #f1e9ff; --muted: #9d8ec0; --border: rgba(192,132,252,0.15);
     }
+    /* Claro: identidad Hechizo (blanco rosado, malva/ciruela, rosa) — igual que web.html */
     body.light {
-      --bg: #f5f0ff; --card: #ffffff; --accent: #7c3aed; --accent2: #6366f1;
-      --danger: #dc2626; --success: #059669;
-      --text: #1a0a2e; --muted: #6b5b8a; --border: rgba(124,58,237,0.15);
+      --bg: #fbf5f8; --card: #ffffff; --accent: #8e3b78; --accent2: #c76a9f;
+      --danger: #c62f3e; --success: #0b7285;
+      --text: #2a1225; --muted: #6b4f63; --border: rgba(142,59,120,0.16);
     }
-    body.light header { background: linear-gradient(180deg,#ede9fe 0%,transparent 100%); }
-    body.light .hero-card { background: linear-gradient(135deg,#ede9fe 0%,#ddd6fe 100%); }
-    body.light .ventas-hero { background: linear-gradient(135deg,#a7f3d0 0%,#6ee7b7 100%); }
-    body.light .ventas-label { color: #065f46; }
-    body.light .ventas-value { color: #1a0a2e; }
-    body.light .ventas-sub { color: #065f46; }
-    body.light .breakdown-detail { background: rgba(124,58,237,.06); }
-    body.light .detail-row { border-bottom-color: rgba(124,58,237,.08); }
+    /* Misma letra en los dos modos; en claro un pelito más de peso (letra oscura sobre blanco se ve más finita) */
+    body.light { font-weight: 450; }
+    body.light header { background: var(--bg); }
+    body.light .hero-card { background: linear-gradient(135deg,#fbe9f1 0%,#f3d6e5 100%); border-color: rgba(142,59,120,.18); }
+    body.light .ventas-hero { background: linear-gradient(135deg,#f4e8f8 0%,#e9d6f1 100%); border-color: rgba(142,59,120,.18); }
+    body.light .ventas-hero::before { background: radial-gradient(circle,rgba(199,106,159,.18) 0%,transparent 70%); }
+    body.light .ventas-label { color: #7a2f66; }
+    body.light .ventas-value { color: #2a1225; }
+    body.light .ventas-sub { color: #6b4f63; }
+    body.light .breakdown-detail { background: rgba(142,59,120,.05); }
+    body.light .detail-row { border-bottom-color: rgba(142,59,120,.08); }
+    body.light #ventas-hoy-pendiente, body.light #ventas-ayer-pendiente { color: #a8660a !important; }
     .theme-btn { background:transparent; border:1px solid var(--border); border-radius:20px; padding:4px 10px; font-size:12px; color:var(--muted); cursor:pointer; font-family:"DM Sans",sans-serif; transition:all .2s; -webkit-tap-highlight-color:transparent; margin-left:auto; }
     body { font-family: "DM Sans", sans-serif; background: var(--bg); color: var(--text); min-height: 100dvh; display: flex; flex-direction: column; }
     header { padding: calc(env(safe-area-inset-top,0px) + 20px) 20px 0; background: var(--bg); position:sticky; top:0; z-index:10; }
@@ -148,7 +153,7 @@
     .pend-sub { font-size:12px; color:var(--muted); margin-bottom:14px; }
     .pend-lista { display:flex; flex-direction:column; gap:10px; }
     .pend-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px; }
-    .pend-card.reclamado { border-color:rgba(52,211,153,.35); }
+    .pend-card.reclamado { border-color:color-mix(in srgb, var(--success) 35%, transparent); }
     .pend-fila1 { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
     .pend-cuerpo { display:flex; gap:12px; align-items:flex-start; }
     .pend-info { flex:1; min-width:0; }
@@ -156,7 +161,7 @@
     .pend-edad b { display:block; font-family:"DM Serif Display",serif; font-size:26px; font-weight:400; }
     .pend-edad span { display:block; font-size:10px; letter-spacing:.5px; margin-top:3px; }
     .pend-edad.vencido { background:rgba(248,113,113,.14); color:var(--danger); }
-    .pend-edad.plazo { background:rgba(52,211,153,.12); color:var(--success); }
+    .pend-edad.plazo { background:color-mix(in srgb, var(--success) 12%, transparent); color:var(--success); }
     .pend-card.vencido { border-color:rgba(248,113,113,.3); }
     .pend-seccion { display:flex; justify-content:space-between; align-items:baseline; margin:20px 0 8px; font-size:14px; font-weight:500; letter-spacing:1.2px; text-transform:uppercase; }
     .pend-seccion.retirar { color:var(--accent); }
@@ -186,7 +191,7 @@
     .pend-prods { font-size:12px; color:var(--muted); margin-top:6px; line-height:1.4; }
     .pend-acciones { display:flex; gap:8px; margin-top:12px; align-items:center; flex-wrap:wrap; }
     .pend-wa { flex:1; border:none; border-radius:12px; padding:10px 12px; background:#25d366; color:#06281a; font-size:14px; font-weight:500; font-family:inherit; cursor:pointer; }
-    .pend-wa.ya { background:transparent; color:var(--success); border:1px solid rgba(52,211,153,.4); }
+    .pend-wa.ya { background:transparent; color:var(--success); border:1px solid color-mix(in srgb, var(--success) 40%, transparent); }
     .pend-wa:disabled { opacity:.4; cursor:not-allowed; }
     .pend-desc { border:1px solid var(--border); border-radius:12px; padding:10px 12px; background:transparent; color:var(--muted); font-size:13px; font-family:inherit; cursor:pointer; }
     .pend-toggle { margin-top:18px; background:transparent; border:none; color:var(--muted); font-size:12px; letter-spacing:1.5px; text-transform:uppercase; font-family:inherit; cursor:pointer; padding:4px 0; }
@@ -1093,8 +1098,8 @@
     const serieA = toPt(valoresA);
 
     const isLight = document.body.classList.contains("light");
-    const colorA = isLight ? "#7c3aed" : "#c084fc";
-    const colorC = isLight ? "rgba(99,102,241,.55)" : "rgba(129,140,248,.6)";
+    const colorA = isLight ? "#8e3b78" : "#c084fc";
+    const colorC = isLight ? "rgba(199,106,159,.6)" : "rgba(129,140,248,.6)";
 
     let svg = "";
     if (serieA.length > 1) {
@@ -1194,10 +1199,10 @@
     const maxV = Math.max(...valoresA, ...valoresCDibujo, valorProy || 0, 1);
 
     const isLight = document.body.classList.contains("light");
-    const colorA = isLight ? "#7c3aed" : "#c084fc";
-    const colorC = isLight ? "#6366f1" : "#818cf8";
-    const grid    = isLight ? "rgba(0,0,0,.07)" : "rgba(255,255,255,.07)";
-    const tick    = isLight ? "#6b5b8a" : "#9d8ec0";
+    const colorA = isLight ? "#8e3b78" : "#c084fc";
+    const colorC = isLight ? "#c76a9f" : "#818cf8";
+    const grid    = isLight ? "rgba(142,59,120,.09)" : "rgba(255,255,255,.07)";
+    const tick    = isLight ? "#6b4f63" : "#9d8ec0";
 
     // W responsive al ancho real del contenedor — evita el letterboxing del viewBox fijo
     const W = Math.max(container.clientWidth || 320, 200), H = 170, PL = 46, PR = 8, PT = 8, PB = 22;
@@ -1870,7 +1875,7 @@
     let varPct = "";
     if (valMesAnt && valMesAnt > 0) {
       const pct = (valTotal - valMesAnt) / valMesAnt * 100;
-      const col = pct >= 0 ? "#34d399" : "#f87171";
+      const col = pct >= 0 ? "var(--success)" : "var(--danger)";
       varPct = '<span style="color:' + col + ';font-weight:600">' + (pct>=0?"+":"") + pct.toFixed(1) + '%</span>'
              + ' <span style="color:var(--muted);font-size:11px">vs mes ant.</span>';
     }
@@ -1882,7 +1887,7 @@
           const prev = arr[i+1];
           const pct = prev ? (h.val - prev.val) / prev.val * 100 : null;
           const barW = Math.round(h.val / maxVal * 100);
-          const col = pct === null ? "var(--muted)" : pct >= 0 ? "#34d399" : "#f87171";
+          const col = pct === null ? "var(--muted)" : pct >= 0 ? "var(--success)" : "var(--danger)";
           const pctStr = pct === null ? "" : (pct>=0?"+":"") + pct.toFixed(1) + "%";
           const cantStr = h.cant != null ? h.cant.toLocaleString("es-AR") + " uds" : "";
           return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
@@ -2423,7 +2428,7 @@
       <div class="kpi-row">
         <div class="hero-card">
           <div class="hero-label">Resultado</div>
-          <div class="hero-value" style="font-size:28px;${estReal < 0 ? 'color:#f87171' : 'color:#34d399'}">${estReal < 0 ? '-' : ''}${fmt(estReal)}</div>
+          <div class="hero-value" style="font-size:28px;${estReal < 0 ? 'color:var(--danger)' : 'color:var(--success)'}">${estReal < 0 ? '-' : ''}${fmt(estReal)}</div>
           <div class="hero-margin">Flujo de Efectivo: <span style="${resultado < 0 ? 'color:#f87171' : ''}">${resultado < 0 ? '-' : ''}${fmt(resultado)}</span></div>
         </div>
         <div class="hero-card">
@@ -2544,9 +2549,9 @@
     const dias = ventasData.diasRecientes.slice(-chartRange);
     const maxVal = Math.max(...dias.map(d => d.total), 1);
     const isLight = document.body.classList.contains("light");
-    const barFill = isLight ? "rgba(124,58,237,.65)" : "rgba(192,132,252,.65)";
-    const tick    = isLight ? "#6b5b8a"              : "#9d8ec0";
-    const grid    = isLight ? "rgba(0,0,0,.07)"      : "rgba(255,255,255,.07)";
+    const barFill = isLight ? "rgba(142,59,120,.6)" : "rgba(192,132,252,.65)";
+    const tick    = isLight ? "#6b4f63"              : "#9d8ec0";
+    const grid    = isLight ? "rgba(142,59,120,.09)"   : "rgba(255,255,255,.07)";
 
     const W = 320, H = 150, PL = 44, PR = 8, PT = 6, PB = 22;
     const cW = W - PL - PR;
@@ -2566,7 +2571,7 @@
       svg += `<text x="${PL-4}" y="${(y+3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="${tick}" font-family="DM Sans,sans-serif">${lbl}</text>`;
     }
 
-    const barSelected = isLight ? "rgba(124,58,237,1)" : "rgba(192,132,252,1)";
+    const barSelected = isLight ? "rgba(142,59,120,1)" : "rgba(192,132,252,1)";
     dias.forEach((d, i) => {
       const bH = Math.max(1, (d.total / maxVal) * cH);
       const x  = PL + i * step;
