@@ -7,7 +7,7 @@
   <title>Hechizo · Web</title>
   <link rel="icon" href="icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:opsz,wght@9..40,300..700&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -18,14 +18,20 @@
       --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --dneg: #e66767;
       --grid: rgba(192,132,252,0.10); --axis: rgba(192,132,252,0.30);
     }
+    /* Claro: identidad Hechizo (blanco rosado, malva/ciruela, oro) */
     body.light {
-      --bg: #f5f0ff; --card: #ffffff; --card2: #f3edff; --accent: #7c3aed; --accent2: #6366f1;
-      --danger: #dc2626; --success: #059669; --warn: #b45309;
-      --text: #1a0a2e; --muted: #6b5b8a; --border: rgba(124,58,237,0.15); --hover: rgba(124,58,237,0.08);
-      --zebra: rgba(124,58,237,0.025);
-      --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --dneg: #e34948;
-      --grid: rgba(124,58,237,0.08); --axis: rgba(124,58,237,0.28);
+      --bg: #fbf5f8; --card: #ffffff; --card2: #f7ecf2; --accent: #8e3b78; --accent2: #c76a9f;
+      --danger: #c62f3e; --success: #0b7285; --warn: #a8660a;
+      --text: #2a1225; --muted: #6b4f63; --border: rgba(142,59,120,0.16); --hover: rgba(142,59,120,0.07);
+      --zebra: rgba(142,59,120,0.025);
+      --s1: #7d55c7; --s2: #e0679a; --s3: #c28a12; --s4: #0e8fa6; --s5: #9a4a6e; --dneg: #d64550;
+      --grid: rgba(142,59,120,0.09); --axis: rgba(142,59,120,0.28);
     }
+    /* Misma letra en los dos modos; en claro un pelito más de peso (letra oscura sobre blanco se ve más finita) */
+    body.light { font-weight: 450; }
+    body.light .kpi-l, body.light .card h3, body.light th, body.light .brand-sub { font-weight: 600; }
+    body.light .kpi-v { font-weight: 650; }
+    body.light .tt { box-shadow: 0 6px 20px rgba(80,20,60,.12); }
     body { font-family: "DM Sans", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
     button, input, select { font-family: inherit; font-size: inherit; color: inherit; }
     .hidden { display: none !important; }
@@ -64,8 +70,8 @@
     .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 20px; }
     .info-grid div span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 2px; }
     .notice { border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; border: 1px solid var(--border); background: var(--card2); }
-    .notice.ok { border-color: rgba(52,211,153,.35); }
-    .notice.warn { border-color: rgba(251,191,36,.45); }
+    .notice.ok { border-color: color-mix(in srgb, var(--success) 40%, transparent); }
+    .notice.warn { border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
     .notice b { font-weight: 600; }
     .notes { color: var(--muted); font-size: 12px; margin: -6px 0 14px; }
     .notes div::before { content: "• "; }
