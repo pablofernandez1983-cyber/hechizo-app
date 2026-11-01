@@ -15,13 +15,13 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --bg: #0e0720; --card: #231540; --accent: #c084fc; --accent2: #818cf8;
-      --danger: #f87171; --success: #34d399;
+      --danger: #f87171; --success: #34d399; --stk: #34d399;
       --text: #f1e9ff; --muted: #9d8ec0; --border: rgba(192,132,252,0.15);
     }
     /* Claro: identidad Hechizo (blanco rosado, malva/ciruela, rosa) — igual que web.html */
     body.light {
       --bg: #fbf5f8; --card: #ffffff; --accent: #8e3b78; --accent2: #c76a9f;
-      --danger: #c62f3e; --success: #0b7285;
+      --danger: #c62f3e; --success: #0b7285; --stk: #8e3b78;
       --text: #2a1225; --muted: #6b4f63; --border: rgba(142,59,120,0.16);
     }
     /* Misma letra en los dos modos; en claro un pelito más de peso (letra oscura sobre blanco se ve más finita) */
@@ -132,6 +132,8 @@
     .est-periodo-label { font-size:11px; color:var(--muted); text-align:center; }
     /* AxI (ajuste por inflación Hechizo): activado por defecto; el botón sólo sirve para apagarlo */
     .est-axi { font-family:"DM Sans",sans-serif; font-size:10px; font-weight:600; letter-spacing:.5px; padding:3px 8px; border-radius:10px; border:1px solid rgba(192,132,252,.35); background:#1a0a2e; color:#c084fc; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    body.light .est-axi { background:#f7ecf2; color:#8e3b78; border-color:rgba(142,59,120,.35); }
+    body.light .est-axi.off { color:#6b4f63; border-color:rgba(142,59,120,.2); }
     .est-axi.off { color:#9d8ec0; border-color:rgba(157,142,192,.25); opacity:.7; }
     .est-variacion { font-size:12px; margin-top:2px; }
     .est-spark { margin-top:8px; height:32px; }
@@ -1903,7 +1905,7 @@
           return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
             + '<span style="font-size:11px;color:var(--muted);width:46px;flex-shrink:0">' + h.mes.replace("-","/") + '</span>'
             + '<div style="flex:1;background:var(--border);border-radius:3px;height:10px">'
-            + '<div style="width:' + barW + '%;background:var(--success);height:10px;border-radius:3px"></div></div>'
+            + '<div style="width:' + barW + '%;background:var(--stk);height:10px;border-radius:3px"></div></div>'
             + '<span style="font-size:11px;width:84px;text-align:right;flex-shrink:0">$ ' + Math.round(h.val/1000000*10)/10 + 'M</span>'
             + (pctStr ? '<span style="font-size:11px;color:' + col + ';width:46px;text-align:right;flex-shrink:0">' + pctStr + '</span>' : '<span style="width:46px"></span>')
             + (cantStr ? '<span style="font-size:11px;color:var(--muted);width:58px;text-align:right;flex-shrink:0">' + cantStr + '</span>' : '<span style="width:58px"></span>')
@@ -1918,14 +1920,14 @@
     }
     const valCard = '<div onclick="toggleValHistoria()" style="background:var(--card);border:1px solid ' + (_valHistoriaOpen?'var(--accent)':'var(--border)') + ';border-radius:8px;padding:8px 14px;text-align:right;flex-shrink:0;cursor:pointer" title="Ver historial">'
       + '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Valuación del stock ' + (_valHistoriaOpen?"▴":"▾") + '</div>'
-      + '<div style="font-size:20px;font-weight:700;color:var(--success)">' + valFmt + '</div>'
+      + '<div style="font-size:20px;font-weight:700;color:var(--stk)">' + valFmt + '</div>'
       + (varPct ? '<div style="font-size:12px;margin-top:3px">' + varPct + '</div>' : '')
       + '</div>';
 
     // ── Período selector ───────────────────────────────────────────────────
     const mkDiasBtn = d2 => {
       const act = d2 === dias;
-      return '<button onclick="cambiarDiasStock(' + d2 + ')" style="background:' + (act?'var(--success)':'var(--card)') + ';border:1px solid ' + (act?'var(--success)':'var(--border)') + ';color:' + (act?'#fff':'var(--muted)') + ';padding:3px 10px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:' + (act?'700':'400') + '">' + d2 + 'd</button>';
+      return '<button onclick="cambiarDiasStock(' + d2 + ')" style="background:' + (act?'var(--stk)':'var(--card)') + ';border:1px solid ' + (act?'var(--stk)':'var(--border)') + ';color:' + (act?'#fff':'var(--muted)') + ';padding:3px 10px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:' + (act?'700':'400') + '">' + d2 + 'd</button>';
     };
     const topRow = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
       + '<div style="display:flex;align-items:center;gap:5px"><span style="font-size:11px;color:var(--muted)">Período:</span>' + mkDiasBtn(30) + mkDiasBtn(90) + mkDiasBtn(180) + '</div>'
@@ -1945,7 +1947,7 @@
       + mkCard("alertas",  "🚨", "Alertas &lt;21d", alertasTodas.length, "#f87171")
       + mkCard("top20",    "📈", "Top 20",           20,                  "#34d399")
       + mkCard("liquidar", "🏷️", "A liquidar",        liquidar.length,     "#fb923c")
-      + mkCard("todas",    "📦", "Todas",            variantes.length,    "var(--success)")
+      + mkCard("todas",    "📦", "Todas",            variantes.length,    "var(--stk)")
       + '</div>';
 
     // ── Sub-filtro cobertura (solo alertas) ────────────────────────────────
@@ -1961,7 +1963,7 @@
     const cobFiltroBar = _stockVista !== "alertas" ? "" :
       '<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap">'
       + '<span style="font-size:11px;color:var(--muted)">Filtrar:</span>'
-      + mkCobChip("",       "Todas",  "var(--success)", alertasTodas.length)
+      + mkCobChip("",       "Todas",  "var(--stk)", alertasTodas.length)
       + mkCobChip("red",    "&lt;7d",  "#f87171", n7)
       + mkCobChip("orange", "7–14d",  "#fb923c", n14)
       + mkCobChip("yellow", "14–21d", "#fbbf24", n21)
