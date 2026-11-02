@@ -3144,7 +3144,20 @@
     const p = envDatos.paquetes.find(x => x.order_id === id);
     if (!p) return;
     const nombre = (p.cliente || "").split(" ")[0];
-    const txt = `¡Hola${nombre ? " " + nombre : ""}! Te escribo de Hechizo 💜 Tu pedido #${p.numero} te está esperando en ${p.sucursal || "la sucursal del Correo"}${p.sucursal_dir ? " (" + p.sucursal_dir + ")" : ""} y ${p.carrier === "andreani" ? "Andreani" : "el Correo"} lo devuelve en estos días. ¿Podés pasar a retirarlo? Llevá tu DNI 🙏`;
+    const empresa = p.carrier === "andreani" ? "Andreani" : "el Correo";
+    // Plazo contado al momento de mandar el WhatsApp (no al de la última revisión)
+    let plazo = `${empresa} lo devuelve en estos días`;
+    if (p.limite_retiro) {
+      const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+      const lim = new Date(p.limite_retiro + "T00:00:00");
+      const d = Math.round((lim - hoy) / 86400000);
+      const dia = lim.toLocaleDateString("es-AR", { weekday: "long" });
+      if (d < 0) plazo = `ya se venció el plazo para retirarlo y ${empresa} lo puede devolver en cualquier momento`;
+      else if (d === 0) plazo = `*hoy es el último día* para retirarlo, después ${empresa} lo devuelve`;
+      else if (d === 1) plazo = `*mañana es el último día* para retirarlo, después ${empresa} lo devuelve`;
+      else plazo = `el *${dia}* es el último día para retirarlo, después ${empresa} lo devuelve`;
+    }
+    const txt = `¡Hola${nombre ? " " + nombre : ""}! Te escribo de Hechizo 💜 Tu pedido #${p.numero} te está esperando en ${p.sucursal || "la sucursal del Correo"}${p.sucursal_dir ? " (" + p.sucursal_dir + ")" : ""} y ${plazo}. ¿Podés pasar a retirarlo? Llevá tu DNI 🙏`;
     window.open("https://wa.me/" + p.whatsapp + "?text=" + encodeURIComponent(txt), "_blank");
     fetchConClave(RAILWAY_URL + "/envios/" + id + "/whatsapp", { method: "POST" }).catch(() => {});
     p.whatsapp_at = new Date().toISOString(); p.toca_whatsapp = false;
