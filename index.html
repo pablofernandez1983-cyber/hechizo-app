@@ -3133,10 +3133,19 @@
     } catch (e) { document.getElementById("env-sub").textContent = "⚠️ No se pudo guardar: " + e.message; }
   }
   async function envRevisarAhora(btn) {
-    btn.disabled = true; btn.textContent = "Revisando con el Correo… (~30 s)";
+    btn.disabled = true; btn.textContent = "Revisando con el Correo… (~1 min)";
     try {
+      const antes = envDatos && envDatos.ultima_revision;
       await fetchConClave(RAILWAY_URL + "/envios/revisar", { method: "POST" });
-      await new Promise(r => setTimeout(r, 30000));
+      // Esperar a que la revisión termine de verdad (cambia ultima_revision), hasta 4 min
+      for (let i = 0; i < 24; i++) {
+        await new Promise(r => setTimeout(r, 10000));
+        try {
+          const r = await fetchConClave(RAILWAY_URL + "/envios?t=" + Date.now(), { cache: "no-store" });
+          const j = await r.json();
+          if (j.ok && j.ultima_revision && j.ultima_revision !== antes) break;
+        } catch (e) {}
+      }
     } catch (e) {}
     cargarEnvios();
   }
