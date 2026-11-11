@@ -654,6 +654,7 @@
       document.getElementById("footer-" + t).classList.toggle("hidden", t !== tab || (t === "stock" && _stockSub !== "inventario"));
     });
     localStorage.setItem("hechizo_tab", tab);
+    if (tab === "resultados")    tabsAlActivo();
     if (tab === "ventas")        asegurarVentasActualizadas();
     if (tab === "estadisticas")  asegurarEstadisticasActualizadas();
     if (tab === "stock")         asegurarStockActualizado();
@@ -1451,7 +1452,9 @@
       // Recién despierto, el celu a veces todavía no tiene red: reintenta un par de veces.
       let rr;
       for (let intento = 0; ; intento++) {
-        try { rr = await fetchConClave(VENTAS_URL + "?t=" + Date.now(), { cache: "no-store" }); break; }
+        // refrescar=1: el botón siempre baja los pedidos de nuevo (al abrir la app, el
+        // servidor no repite la bajada completa si la hizo hace menos de 5 minutos)
+        try { rr = await fetchConClave(VENTAS_URL + "?refrescar=1&t=" + Date.now(), { cache: "no-store" }); break; }
         catch (e) {
           if (intento >= 2 || /clave/i.test(e.message)) throw e;
           await new Promise(r => setTimeout(r, 2000));
@@ -2195,33 +2198,61 @@
     }, 15000);
   }
 
+  // Resultados muestra el año en curso y el anterior (así en enero se sigue viendo
+  // diciembre, y la app abre aunque la solapa del año nuevo todavía no exista).
+  const HOJAS_PNL = [String(Number(SHEET_NAME) - 1), SHEET_NAME];
+
+  // Filas de una solapa del Sheet RESUMEN, o null si no existe / no se pudo leer.
+  async function leerHoja(nombre) {
+    const url = `${RAILWAY_URL}/sheet-values?range=${encodeURIComponent(nombre)}&valueRenderOption=UNFORMATTED_VALUE&t=${Date.now()}`;
+    const res = await fetchConClave(url, { cache: "no-store" });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.values && json.values.length >= 2 ? json.values : null;
+  }
+
+  // Une dos solapas de años distintos en una sola tabla (primera columna = nombre de la fila).
+  function unirHojas(a, b) {
+    if (!a) return b;
+    if (!b) return a;
+    const anchoA = a[0].length - 1, anchoB = b[0].length - 1;
+    const fila = (rows, nombre, ancho) => {
+      const r = rows.find(x => String(x[0] || "").trim() === nombre) || [];
+      return Array.from({ length: ancho }, (_, i) => r[i + 1] ?? "");
+    };
+    const nombres = [];
+    for (const r of [...a.slice(1), ...b.slice(1)]) {
+      const n = String(r[0] || "").trim();
+      if (n && !nombres.includes(n)) nombres.push(n);
+    }
+    return [
+      [a[0][0], ...a[0].slice(1), ...b[0].slice(1)],
+      ...nombres.map(n => [n, ...fila(a, n, anchoA), ...fila(b, n, anchoB)]),
+    ];
+  }
+
   async function cargarDetalle() {
     try {
-      const range = encodeURIComponent(`${SHEET_NAME} detalle`);
-      const url = `${RAILWAY_URL}/sheet-values?range=${range}&valueRenderOption=UNFORMATTED_VALUE&t=${Date.now()}`;
-      const res = await fetchConClave(url, { cache: "no-store" });
-      if (!res.ok) return;
-      const json = await res.json();
-      const rows = json.values;
-      if (!rows || rows.length < 2) return;
-
-      const headers = rows[0];
-      const periodos = headers.slice(2).map(p => String(p).trim());
+      const hojas = await Promise.all(HOJAS_PNL.map(h => leerHoja(`${h} detalle`).catch(() => null)));
       const result = {};
-      periodos.forEach(p => { result[p] = {}; });
+      for (const rows of hojas) {
+        if (!rows) continue;
+        const periodos = rows[0].slice(2).map(p => String(p).trim());
+        periodos.forEach(p => { result[p] = {}; });
 
-      for (let r = 1; r < rows.length; r++) {
-        const cat  = String(rows[r][0] || "").trim();
-        const desc = String(rows[r][1] || "").trim();
-        if (!cat || !desc || cat.startsWith("SUBTOTAL") || cat.startsWith("RESULTADO") || cat.startsWith("ESTIMACION")) continue;
-        periodos.forEach((p, i) => {
-          const val = parseFloat(rows[r][i + 2]) || 0;
-          if (val === 0) return;
-          if (!result[p][cat]) result[p][cat] = [];
-          result[p][cat].push({ desc, val });
-        });
+        for (let r = 1; r < rows.length; r++) {
+          const cat  = String(rows[r][0] || "").trim();
+          const desc = String(rows[r][1] || "").trim();
+          if (!cat || !desc || cat.startsWith("SUBTOTAL") || cat.startsWith("RESULTADO") || cat.startsWith("ESTIMACION")) continue;
+          periodos.forEach((p, i) => {
+            const val = parseFloat(rows[r][i + 2]) || 0;
+            if (val === 0) return;
+            if (!result[p][cat]) result[p][cat] = [];
+            result[p][cat].push({ desc, val });
+          });
+        }
       }
-      detalleData = result;
+      if (Object.keys(result).length) detalleData = result;
     } catch (e) {
       // silencioso
     }
@@ -2258,22 +2289,22 @@
     const conCache = !!appData;
     if (!conCache) show("screen-loading");
     try {
-      const range = encodeURIComponent(SHEET_NAME);
-      const url = `${RAILWAY_URL}/sheet-values?range=${range}&valueRenderOption=UNFORMATTED_VALUE&t=${Date.now()}`;
-      const [res, fechaGeneral] = await Promise.all([
-        fetchConClave(url, { cache: "no-store" }),
+      // El año en curso primero: si la clave falta se pide una sola vez, no dos.
+      const actual = await leerHoja(SHEET_NAME);
+      const [anterior, fechaGeneral] = await Promise.all([
+        leerHoja(HOJAS_PNL[0]).catch(() => null),
         obtenerFechaGeneral(true),
       ]);
-      if (!res.ok) throw new Error("Error " + res.status);
-      const json = await res.json();
+      const values = unirHojas(anterior, actual);
+      if (!values) throw new Error("no hay resultados para mostrar");
 
       cargarDetalle().then(() => {  // en paralelo, re-renderiza cuando llega
         if (periodoActivo) mostrar(periodoActivo);
-        guardarPnlLocal(json.values, fechaGeneral);
+        guardarPnlLocal(values, fechaGeneral);
       });
       mostrandoCache = false;
-      procesarDatos(json.values, fechaGeneral);
-      guardarPnlLocal(json.values, fechaGeneral);
+      procesarDatos(values, fechaGeneral);
+      guardarPnlLocal(values, fechaGeneral);
     } catch (err) {
       if (conCache) {
         // Quedan los datos guardados en pantalla; solo se avisa.
@@ -2413,6 +2444,17 @@
     }).join("");
 
     document.getElementById("tabs").innerHTML = html;
+    tabsAlActivo();
+  }
+
+  // Con dos años en la barra, el mes elegido puede quedar fuera de la pantalla: lo trae a la vista.
+  function tabsAlActivo() {
+    const cont = document.getElementById("tabs");
+    const act = cont.querySelector(".tab.active") || cont.querySelector(".q-active");
+    if (!act || !cont.clientWidth) return;   // panel oculto: se acomoda al mostrarlo
+    const c = cont.getBoundingClientRect(), r = act.getBoundingClientRect();
+    if (r.right > c.right - 12) cont.scrollLeft += r.right - c.right + 20;
+    else if (r.left < c.left + 12) cont.scrollLeft += r.left - c.left - 20;
   }
 
   function mostrar(periodo) {
