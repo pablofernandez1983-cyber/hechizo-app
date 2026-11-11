@@ -2202,11 +2202,14 @@
   // diciembre, y la app abre aunque la solapa del año nuevo todavía no exista).
   const HOJAS_PNL = [String(Number(SHEET_NAME) - 1), SHEET_NAME];
 
-  // Filas de una solapa del Sheet RESUMEN, o null si no existe / no se pudo leer.
+  // Filas de una solapa del Sheet RESUMEN; null si la solapa no existe (404: el año nuevo
+  // antes de la primera corrida). Si no se pudo leer, lanza error: así no se pisa lo que
+  // está en pantalla con datos incompletos.
   async function leerHoja(nombre) {
     const url = `${RAILWAY_URL}/sheet-values?range=${encodeURIComponent(nombre)}&valueRenderOption=UNFORMATTED_VALUE&t=${Date.now()}`;
     const res = await fetchConClave(url, { cache: "no-store" });
-    if (!res.ok) return null;
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error("Error " + res.status);
     const json = await res.json();
     return json.values && json.values.length >= 2 ? json.values : null;
   }
@@ -2292,7 +2295,7 @@
       // El año en curso primero: si la clave falta se pide una sola vez, no dos.
       const actual = await leerHoja(SHEET_NAME);
       const [anterior, fechaGeneral] = await Promise.all([
-        leerHoja(HOJAS_PNL[0]).catch(() => null),
+        leerHoja(HOJAS_PNL[0]),
         obtenerFechaGeneral(true),
       ]);
       const values = unirHojas(anterior, actual);
