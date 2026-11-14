@@ -1042,115 +1042,208 @@
     }};
   }
 
-  // ═══════════════════ CATEGORÍAS (Bijou / Home / Ropa / Otros) ═══════════════════
+  // ═══════════════════ CATEGORÍAS (tablero con filtros) ═══════════════════
   const GRUPOS = [
     { key: "Bijou", color: "var(--s1)" }, { key: "Home", color: "var(--s2)" },
     { key: "Ropa", color: "var(--s3)" }, { key: "Otros", color: "var(--s4)" },
   ];
   const PALETA = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)", "var(--s5)"];
-  const catUI = { modo: "u12", vista: "pct", ver: "grupos" };
+  const EDADES = ["<25", "25-34", "35-44", "45-54", "55+"];
+  const EDAD_LBL = { "<25": "Menos de 25", "25-34": "25 a 34", "35-44": "35 a 44", "45-54": "45 a 54", "55+": "55 o más", "s/d": "Sin dato" };
+  const kmAdd = (km, k) => { const [a, m] = km.split("-").map(Number); const d = new Date(a, m - 1 + k, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+  const kmRango = (d, h) => { const out = []; for (let k = d; k <= h; k = kmAdd(k, 1)) out.push(k); return out; };
+  const catUI = (() => { const h = hoyAR(), km = `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, "0")}`;
+    return { d: `${h.getFullYear()}-01`, h: km, tipo: "todos", edad: "", grupo: "", vista: "abs", gran: "mes", matriz: "pct", comparar: true }; })();
   let catCache = null;
 
   function vistaCategorias() {
     return { sec: "categorias", titulo: "Categorías", render: async el => {
       cargando(el);
-      const hoy = hoyAR(), kmHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
-      if (!catCache) { try { catCache = (await api("/web/categorias")).filas; } catch (e) { return errorEn(el, e); } }
-      const D = {};  // D[km]["grupo|sub"] = {u, f}
-      catCache.forEach(r => { (D[r.mes] ||= {})[r.grupo + "|" + r.sub] = { u: +r.unidades || 0, f: +r.facturado || 0 }; });
-      const anios = [...new Set(Object.keys(D).map(k => k.slice(0, 4)))].sort();
-      const kmMenos = (km, k) => { const [a, mm] = km.split("-").map(Number); const d = new Date(a, mm - 1 - k, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
-      const P = catUI.modo === "anual"
-        ? anios.map(a => ({ label: `Año ${a}`, corto: a, meses: Object.keys(D).filter(k => k.startsWith(a)), d: `${a}-01`, h: a === kmHoy.slice(0, 4) ? kmHoy : `${a}-12` }))
-        : (catUI.modo === "u12" ? Array.from({ length: 12 }, (_, i) => kmMenos(kmHoy, 11 - i))
-            : Array.from({ length: 12 }, (_, i) => `${catUI.modo}-${String(i + 1).padStart(2, "0")}`).filter(k => k <= kmHoy))
-          .map(k => ({ label: mesLabel(k) + (k === kmHoy ? " (en curso)" : ""), corto: MESES[+k.slice(5) - 1] + (catUI.modo === "u12" ? " " + k.slice(2, 4) : ""), meses: [k], d: k, h: k }));
-      const mesesTodos = P.flatMap(p => p.meses);
-      const suma = (meses, filtro, campo = "f") => meses.reduce((a, k) => a + Object.entries(D[k] || {}).reduce((b, [gs, x]) => b + (filtro(gs) ? x[campo] : 0), 0), 0);
-      const total = suma(mesesTodos, () => true);
-      const totG = g => suma(mesesTodos, gs => gs.startsWith(g + "|"));
+      if (!catCache) { try { catCache = await api("/web/categorias"); } catch (e) { return errorEn(el, e); } }
+      const kmHoy = catCache.hoy.slice(0, 7);
+      // fila: [mes, grupo, sub, tipo, edad, p, unidades, facturado]
+      const R = catCache.filas;
+      const mesesData = [...new Set(R.map(r => r[0]))].sort();
+      const primerMes = mesesData[0] || kmHoy;
+      const anios = [...new Set(mesesData.map(k => k.slice(0, 4)))];
+      const U = catUI;
+      if (U.h > kmHoy) U.h = kmHoy;
+      if (U.d > U.h) U.d = U.h;
 
-      // Subcategorías del período (para la tabla y para las series cuando se mira un grupo)
+      const pasa = (r, ignorar = {}) => (U.tipo === "todos" || r[3] === U.tipo)
+        && (ignorar.edad || !U.edad || r[4] === U.edad)
+        && (ignorar.grupo || !U.grupo || r[1] === U.grupo);
+      const enRango = (r, d, h) => r[0] >= d && r[0] <= h;
+      // Mismo período del año anterior: si el rango termina en el mes en curso, de ese mes se toma solo hasta el día de hoy
+      const dAnt = kmAdd(U.d, -12), hAnt = kmAdd(U.h, -12);
+      const enAnt = r => enRango(r, dAnt, hAnt) && !(U.h === kmHoy && r[0] === hAnt && !r[5]);
+      const hayAnt = hAnt >= primerMes;
+
+      const cur = R.filter(r => enRango(r, U.d, U.h) && pasa(r));
+      const ant = U.comparar && hayAnt ? R.filter(r => enAnt(r) && pasa(r)) : [];
+      const sumF = rs => rs.reduce((a, r) => a + r[7], 0), sumU = rs => rs.reduce((a, r) => a + r[6], 0);
+      const total = sumF(cur), totalAnt = sumF(ant);
+      const varPct = (a, b) => b > 0 ? a / b - 1 : null;
+      const fmtVar = v => v == null ? "" : `<span style="color:${v >= 0 ? "var(--success)" : "var(--danger)"}">${v >= 0 ? "▲" : "▼"} ${nf0.format(Math.abs(v * 100))} %</span>`;
+
+      // Por subcategoría
       const subs = {};
-      mesesTodos.forEach(k => Object.entries(D[k] || {}).forEach(([gs, x]) => { const s = (subs[gs] ||= { u: 0, f: 0 }); s.u += x.u; s.f += x.f; }));
-      let series, valor;
-      if (catUI.ver === "grupos") {
-        series = GRUPOS;
-        valor = (pi, g) => suma(P[pi].meses, gs => gs.startsWith(g + "|"));
-      } else {
-        const top = Object.entries(subs).filter(([gs]) => gs.startsWith(catUI.ver + "|")).sort((a, b) => b[1].f - a[1].f).map(([gs]) => gs);
-        const prin = top.slice(0, 4);
-        series = prin.map((gs, i) => ({ key: gs, label: gs.split("|")[1], color: PALETA[i] }));
-        if (top.length > 4) series.push({ key: "resto", label: "Resto", color: PALETA[4] });
-        valor = (pi, k) => k === "resto"
-          ? suma(P[pi].meses, gs => gs.startsWith(catUI.ver + "|") && !prin.includes(gs))
-          : suma(P[pi].meses, gs => gs === k);
+      const acum = (rs, campo) => rs.forEach(r => { const k = r[1] + "|" + r[2]; const s = (subs[k] ||= { grupo: r[1], sub: r[2], f: 0, u: 0, fa: 0, ua: 0 }); if (campo === "a") { s.fa += r[7]; s.ua += r[6]; } else { s.f += r[7]; s.u += r[6]; } });
+      acum(cur, "c"); acum(ant, "a");
+      const totGrupo = {}; Object.values(subs).forEach(s => totGrupo[s.grupo] = (totGrupo[s.grupo] || 0) + s.f);
+      const ranking = Object.values(subs).filter(s => s.f > 0).sort((a, b) => b.f - a.f);
+
+      // Series del gráfico: grupos, o subcategorías del grupo elegido (top 4 + resto)
+      let series, claveSerie;
+      if (!U.grupo) { series = GRUPOS.filter(g => totGrupo[g.key]); claveSerie = r => r[1]; }
+      else {
+        const top = ranking.filter(s => s.grupo === U.grupo).slice(0, 4).map(s => s.grupo + "|" + s.sub);
+        series = top.map((k, i) => ({ key: k, label: k.split("|")[1], color: PALETA[i] }));
+        if (ranking.filter(s => s.grupo === U.grupo).length > 4) series.push({ key: "resto", label: "Resto", color: PALETA[4] });
+        claveSerie = r => { const k = r[1] + "|" + r[2]; return top.includes(k) ? k : "resto"; };
       }
-      const nombreModo = catUI.modo === "u12" ? "últimos 12 meses" : catUI.modo === "anual" ? "toda la historia" : catUI.modo;
+      const meses = kmRango(U.d, U.h);
+      const P = U.gran === "anio"
+        ? [...new Set(meses.map(k => k.slice(0, 4)))].map(a => ({ label: `Año ${a}`, corto: a, meses: meses.filter(k => k.startsWith(a)) }))
+        : meses.map(k => ({ label: mesLabel(k) + (k === kmHoy ? " (en curso)" : ""), corto: MESES[+k.slice(5) - 1] + " " + k.slice(2, 4), meses: [k] }));
+      const SV = {}; cur.forEach(r => { const k = r[0] + "§" + claveSerie(r); SV[k] = (SV[k] || 0) + r[7]; });
+      const valor = (pi, key) => P[pi].meses.reduce((a, m) => a + (SV[m + "§" + key] || 0), 0);
+
+      // Matriz por edad (ignora el filtro de edad)
+      const curE = R.filter(r => enRango(r, U.d, U.h) && pasa(r, { edad: true }));
+      const M = {}, totEdad = {};
+      curE.forEach(r => { const k = r[1] + "|" + r[2]; (M[k] ||= {})[r[4]] = (M[k][r[4]] || 0) + r[7]; totEdad[r[4]] = (totEdad[r[4]] || 0) + r[7]; });
+      const conEdad = EDADES.reduce((a, e) => a + (totEdad[e] || 0), 0), totalE = conEdad + (totEdad["s/d"] || 0);
+      // Grupos por edad (ignora edad y grupo)
+      const GE = {}; R.filter(r => enRango(r, U.d, U.h) && pasa(r, { edad: true, grupo: true })).forEach(r => { GE[r[4] + "|" + r[1]] = (GE[r[4] + "|" + r[1]] || 0) + r[7]; });
+
+      const presets = [
+        ["Este año", `${kmHoy.slice(0, 4)}-01`, kmHoy],
+        ["Últimos 12 meses", kmAdd(kmHoy, -11), kmHoy],
+        ["Este mes", kmHoy, kmHoy],
+        ...anios.filter(a => a !== kmHoy.slice(0, 4)).reverse().map(a => [a, `${a}-01`, `${a}-12`]),
+        ["Toda la historia", primerMes, kmHoy],
+      ];
+      const opcMes = sel => mesesData.concat(mesesData.includes(kmHoy) ? [] : [kmHoy]).map(k => `<option value="${k}"${k === sel ? " selected" : ""}>${MESES[+k.slice(5) - 1]} ${k.slice(0, 4)}</option>`).join("");
+      const periodoTxt = rangoLabel(U.d, U.h) + (U.h === kmHoy ? ` (hasta el ${fecha(catCache.hoy)})` : "");
+      const filtrosTxt = [U.tipo !== "todos" ? (U.tipo === "minorista" ? "minoristas" : "mayoristas") : "", U.edad ? "edad " + EDAD_LBL[U.edad].toLowerCase() : "", U.grupo].filter(Boolean).join(" · ");
+      const comp = U.comparar && hayAnt;
 
       el.innerHTML = `
         <div class="page-title">Categorías</div>
-        <div class="page-sub">Qué tipo de productos se venden: bijou, home (cerámica, altares, sahumar, aromas…), ropa y otros. Se clasifica por el nombre del producto, así que incluye productos que ya no están en la tienda. Importes a precio de lista (antes de descuentos).</div>
-        <div class="toolbar">
-          <button class="chip${catUI.modo === "u12" ? " active" : ""}" data-m="u12">Últimos 12 meses</button>
-          ${anios.map(a => `<button class="chip${catUI.modo === a ? " active" : ""}" data-m="${a}">${a}</button>`).join("")}
-          <button class="chip${catUI.modo === "anual" ? " active" : ""}" data-m="anual">Por año</button>
+        <div class="page-sub">Qué tipo de productos se venden y a quién. Se clasifica por el nombre del producto (incluye productos que ya no están en la tienda). Importes a precio de lista, antes de descuentos. La edad es la que tenía la clienta al comprar, estimada por su DNI.</div>
+        <div class="card" style="padding:14px 16px">
+          <div class="toolbar" style="margin-bottom:8px">
+            ${presets.map(([l, d, h]) => `<button class="chip${U.d === d && U.h === h ? " active" : ""}" data-pd="${d}" data-ph="${h}">${l}</button>`).join("")}
+            <span style="width:6px"></span>
+            <select data-r="d">${opcMes(U.d)}</select> <span class="count">a</span> <select data-r="h">${opcMes(U.h)}</select>
+          </div>
+          <div class="toolbar" style="margin:0">
+            <select data-r="tipo">${[["todos", "Clientas: todas"], ["minorista", "Minoristas"], ["mayorista", "Mayoristas"]].map(([v, l]) => `<option value="${v}"${U.tipo === v ? " selected" : ""}>${l}</option>`).join("")}</select>
+            <select data-r="edad"><option value="">Edad: todas</option>${[...EDADES, "s/d"].map(e => `<option value="${e}"${U.edad === e ? " selected" : ""}>${EDAD_LBL[e]}</option>`).join("")}</select>
+            <select data-r="grupo"><option value="">Grupo: todos</option>${GRUPOS.map(g => `<option${U.grupo === g.key ? " selected" : ""}>${g.key}</option>`).join("")}</select>
+            <label class="count" style="display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" data-r="comp"${U.comparar ? " checked" : ""}/> Comparar con el mismo período del año anterior</label>
+            <span class="spacer"></span>
+            ${U.tipo !== "todos" || U.edad || U.grupo ? `<button class="ghost-btn" data-r="limpiar">Limpiar filtros</button>` : ""}
+          </div>
         </div>
         <div class="kpis">
-          <div class="kpi"><div class="kpi-l">Facturado · ${esc(nombreModo)}</div><div class="kpi-v">${money(total)}</div></div>
-          ${GRUPOS.filter(g => totG(g.key)).map(g => `<div class="kpi"><div class="kpi-l"><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${g.color};margin-right:6px"></i>${esc(g.key)}</div><div class="kpi-v">${pct(total ? totG(g.key) / total : 0)}</div><div class="count">${money(totG(g.key))}</div></div>`).join("")}
+          <div class="kpi"><div class="kpi-l">Facturado · ${esc(periodoTxt)}</div><div class="kpi-v">${money(total)}</div>
+            <div class="count">${comp ? `${fmtVar(varPct(total, totalAnt))} vs ${money(totalAnt)} un año antes` : esc(filtrosTxt || "sin filtros")}</div></div>
+          <div class="kpi"><div class="kpi-l">Unidades</div><div class="kpi-v">${nf0.format(sumU(cur))}</div>
+            <div class="count">${comp ? fmtVar(varPct(sumU(cur), sumU(ant))) : ""}</div></div>
+          ${(!U.grupo ? GRUPOS.filter(g => totGrupo[g.key]).map(g => ({ l: g.key, color: g.color, f: totGrupo[g.key], fa: ant.filter(r => r[1] === g.key).reduce((a, r) => a + r[7], 0) }))
+            : ranking.filter(s => s.grupo === U.grupo).slice(0, 3).map((s, i) => ({ l: s.sub, color: PALETA[i], f: s.f, fa: s.fa })))
+            .map(x => `<div class="kpi"><div class="kpi-l"><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${x.color};margin-right:6px"></i>${esc(x.l)}</div><div class="kpi-v">${pct(total ? x.f / total : 0)}</div><div class="count">${money(x.f)} ${comp ? fmtVar(varPct(x.f, x.fa)) : ""}</div></div>`).join("")}
         </div>
         <div class="card">
-          <div class="chart-head"><h3>${catUI.ver === "grupos" ? "Facturado por grupo" : "Subcategorías de " + esc(catUI.ver)}</h3>
-            <div class="seg-toggle">${["grupos", "Bijou", "Home", "Ropa"].map(v => `<button data-ver="${v}" class="${catUI.ver === v ? "on" : ""}">${v === "grupos" ? "Grupos" : v}</button>`).join("")}</div>
+          <div class="chart-head"><h3>${U.grupo ? "Subcategorías de " + esc(U.grupo) : "Facturado por grupo"}${filtrosTxt.replace(" · " + U.grupo, "").replace(U.grupo, "") ? ` <span class="count">· ${esc(filtrosTxt.replace(" · " + U.grupo, "").replace(U.grupo, ""))}</span>` : ""}</h3>
             <span class="spacer"></span>${leyenda(series)}
-            <div class="seg-toggle"><button data-v="abs" class="${catUI.vista === "abs" ? "on" : ""}">$</button><button data-v="pct" class="${catUI.vista === "pct" ? "on" : ""}">% del total</button></div></div>
+            <div class="seg-toggle"><button data-g="mes" class="${U.gran === "mes" ? "on" : ""}">Por mes</button><button data-g="anio" class="${U.gran === "anio" ? "on" : ""}">Por año</button></div>
+            <div class="seg-toggle"><button data-v="abs" class="${U.vista === "abs" ? "on" : ""}">$</button><button data-v="pct" class="${U.vista === "pct" ? "on" : ""}">% del total</button></div></div>
           <div class="chart" data-r="barras"></div>
+          <div class="chart-note">${U.grupo ? "Tocá una barra para ver los productos de esa subcategoría." : "Elegí un grupo en los filtros para ver sus subcategorías."}</div>
         </div>
-        <div class="card"><h3>Subcategorías · ${esc(nombreModo)}</h3><div data-r="tabla"></div></div>`;
+        <div class="card"><h3>Subcategorías · ${esc(periodoTxt)}</h3><div data-r="tabla"></div></div>
+        <div class="grid2">
+          <div class="card"><div class="chart-head"><h3>Grupos por edad</h3><span class="spacer"></span>${leyenda(GRUPOS)}</div>
+            <div class="chart" data-r="edadg"></div>
+            <div class="chart-note">Qué parte de lo que gasta cada edad va a cada grupo (tocá una edad para filtrar). Peso de cada edad en la facturación: ${EDADES.map(e => `<b>${EDAD_LBL[e]}</b> ${pct(conEdad ? (totEdad[e] || 0) / conEdad : 0)}`).join(" · ")}. Sin dato de edad: ${pct(totalE ? (totEdad["s/d"] || 0) / totalE : 0)}.</div></div>
+          <div class="card"><div class="chart-head"><h3>Subcategorías por edad</h3><span class="spacer"></span>
+            <div class="seg-toggle"><button data-mx="pct" class="${U.matriz === "pct" ? "on" : ""}">% de cada edad</button><button data-mx="abs" class="${U.matriz === "abs" ? "on" : ""}">$</button></div></div>
+            <div data-r="matriz"></div>
+            <div class="chart-note">${U.matriz === "pct" ? "Cada columna suma 100 %: de lo que gasta esa edad, cuánto va a cada subcategoría." : "Facturado por subcategoría y edad."} Tocá una fila para ver los productos.</div></div>
+        </div>`;
 
-      const dibujar = () => graficoApilado(el.querySelector('[data-r="barras"]'), {
-        cats: P, series, valor, pct: catUI.vista === "pct", fmtY: moneyK, fmtV: money,
-        onClick: (pi, k) => { if (k && k.includes("|")) abrir(vistaCategoria(k.split("|")[1], P[pi].d, P[pi].h)); },
-      });
+      const abrirSub = sub => abrir(vistaCategoria(sub, U.d, U.h, U.tipo, U.edad));
+      const dibujar = () => {
+        graficoApilado(el.querySelector('[data-r="barras"]'), {
+          cats: P, series, valor, pct: U.vista === "pct", fmtY: moneyK, fmtV: money,
+          onClick: (pi, k) => { if (k && k.includes("|")) abrirSub(k.split("|")[1]); },
+        });
+        graficoApilado(el.querySelector('[data-r="edadg"]'), {
+          cats: EDADES.map(e => ({ label: EDAD_LBL[e], corto: EDAD_LBL[e] })), series: GRUPOS, pct: true, fmtY: moneyK, fmtV: money,
+          valor: (ci, g) => GE[EDADES[ci] + "|" + g] || 0,
+          onClick: ci => { U.edad = EDADES[ci]; render(); },
+        });
+      };
       dibujar();
       alRedimensionar = dibujar;
 
-      const totPorGrupo = {};
-      Object.entries(subs).forEach(([gs, x]) => { const g = gs.split("|")[0]; totPorGrupo[g] = (totPorGrupo[g] || 0) + x.f; });
-      const filas = Object.entries(subs).map(([gs, x]) => {
-        const [grupo, sub] = gs.split("|");
-        return { grupo, sub, facturado: x.f, unidades: x.u, p_total: total ? x.f / total : 0, p_grupo: totPorGrupo[grupo] ? x.f / totPorGrupo[grupo] : 0, precio_prom: x.u ? x.f / x.u : null };
-      });
       tabla(el.querySelector('[data-r="tabla"]'), {
         columnas: [
-          { key: "grupo", label: "Grupo", tipo: "texto", filtro: true },
+          { key: "grupo", label: "Grupo", tipo: "texto" },
           { key: "sub", label: "Subcategoría", tipo: "texto" },
           { key: "facturado", label: "Facturado", tipo: "money" },
           { key: "p_total", label: "% del total", tipo: "pct" },
           { key: "p_grupo", label: "% del grupo", tipo: "pct" },
           { key: "unidades", label: "Unidades", tipo: "int" },
           { key: "precio_prom", label: "Precio prom.", tipo: "money", sumar: false },
+          ...(comp ? [{ key: "anterior", label: "Año anterior", tipo: "money" }, { key: "variacion", label: "Variación", tipo: "pct" }] : []),
         ],
-        filas, ordenInicial: "facturado", exportar: `Categorías ${nombreModo}`,
-        onRow: r => abrir(vistaCategoria(r.sub, P[0].d, P[P.length - 1].h)),
+        filas: Object.values(subs).filter(s => s.f || s.fa).map(s => ({ grupo: s.grupo, sub: s.sub, facturado: s.f, unidades: s.u,
+          p_total: total ? s.f / total : 0, p_grupo: totGrupo[s.grupo] ? s.f / totGrupo[s.grupo] : 0, precio_prom: s.u ? s.f / s.u : null,
+          anterior: s.fa, variacion: varPct(s.f, s.fa) })),
+        ordenInicial: "facturado", exportar: `Categorías ${U.d} a ${U.h}${filtrosTxt ? " " + filtrosTxt : ""}`,
+        onRow: r => abrirSub(r.sub),
       });
 
-      el.querySelectorAll("[data-m]").forEach(b => b.addEventListener("click", () => { catUI.modo = b.dataset.m; render(); }));
-      el.querySelectorAll("[data-v]").forEach(b => b.addEventListener("click", () => { catUI.vista = b.dataset.v; render(); }));
-      el.querySelectorAll("[data-ver]").forEach(b => b.addEventListener("click", () => { catUI.ver = b.dataset.ver; render(); }));
+      const mxPct = U.matriz === "pct";
+      tabla(el.querySelector('[data-r="matriz"]'), {
+        columnas: [{ key: "sub", label: "Subcategoría", tipo: "texto" },
+          ...EDADES.map(e => ({ key: e, label: EDAD_LBL[e], tipo: mxPct ? "pct" : "money" }))],
+        filas: Object.entries(M).map(([k, v]) => { const f = { sub: k.split("|")[1], _t: EDADES.reduce((a, e) => a + (v[e] || 0), 0) };
+          EDADES.forEach(e => f[e] = mxPct ? (totEdad[e] ? (v[e] || 0) / totEdad[e] : 0) : (v[e] || 0)); return f; }).filter(f => f._t > 0).sort((a, b) => b._t - a._t),
+        totales: !mxPct, exportar: `Categorías por edad ${U.d} a ${U.h}`,
+        onRow: r => abrirSub(r.sub),
+      });
+
+      const set = (k, v) => { U[k] = v; render(); };
+      el.querySelectorAll("[data-pd]").forEach(b => b.addEventListener("click", () => { U.d = b.dataset.pd; U.h = b.dataset.ph; U.gran = kmRango(U.d, U.h).length > 24 ? "anio" : "mes"; render(); }));
+      el.querySelector('[data-r="d"]').addEventListener("change", e => { U.d = e.target.value; if (U.h < U.d) U.h = U.d; render(); });
+      el.querySelector('[data-r="h"]').addEventListener("change", e => { U.h = e.target.value; if (U.d > U.h) U.d = U.h; render(); });
+      el.querySelector('[data-r="tipo"]').addEventListener("change", e => set("tipo", e.target.value));
+      el.querySelector('[data-r="edad"]').addEventListener("change", e => set("edad", e.target.value));
+      el.querySelector('[data-r="grupo"]').addEventListener("change", e => set("grupo", e.target.value));
+      el.querySelector('[data-r="comp"]').addEventListener("change", e => set("comparar", e.target.checked));
+      el.querySelector('[data-r="limpiar"]')?.addEventListener("click", () => { U.tipo = "todos"; U.edad = ""; U.grupo = ""; render(); });
+      el.querySelectorAll("[data-g]").forEach(b => b.addEventListener("click", () => set("gran", b.dataset.g)));
+      el.querySelectorAll("[data-v]").forEach(b => b.addEventListener("click", () => set("vista", b.dataset.v)));
+      el.querySelectorAll("[data-mx]").forEach(b => b.addEventListener("click", () => set("matriz", b.dataset.mx)));
     }};
   }
 
-  function vistaCategoria(sub, dKm, hKm) {
+  function vistaCategoria(sub, dKm, hKm, tipo = "todos", edad = "") {
+    const extra = [tipo !== "todos" ? (tipo === "minorista" ? "minoristas" : "mayoristas") : "", edad ? "edad " + EDAD_LBL[edad].toLowerCase() : ""].filter(Boolean).join(" · ");
     return { titulo: sub, render: el => {
       const rango = { desde: `${dKm}-01`, hasta: finDeMes(hKm) };
-      el.innerHTML = `<div class="page-title">${esc(sub)}</div><div class="page-sub">Productos de esta subcategoría. Tocá uno para ver variantes, evolución y órdenes.</div>
+      el.innerHTML = `<div class="page-title">${esc(sub)}</div><div class="page-sub">Productos de esta subcategoría${extra ? " · " + esc(extra) : ""}. Tocá uno para ver variantes, evolución y órdenes.</div>
         <div data-r="rango"></div><div data-r="tabla"></div>`;
       const cargar = async () => {
         const $t = el.querySelector('[data-r="tabla"]'); cargando($t);
         try {
-          const j = await api(`/web/categorias?sub=${encodeURIComponent(sub)}&desde=${rango.desde}&hasta=${rango.hasta}`);
+          const q = `sub=${encodeURIComponent(sub)}&desde=${rango.desde}&hasta=${rango.hasta}${tipo !== "todos" ? "&tipo=" + tipo : ""}${edad ? "&edad=" + encodeURIComponent(edad) : ""}`;
+          const j = await api(`/web/categorias?${q}`);
           tabla($t, { columnas: [
               { key: "producto", label: "Producto", tipo: "texto", wrap: true },
               { key: "unidades", label: "Unidades", tipo: "int" },
