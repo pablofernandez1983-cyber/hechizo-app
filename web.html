@@ -214,6 +214,7 @@
         <button class="nav-btn" data-sec="resultados">Resultados</button>
         <button class="nav-btn" data-sec="ventas">Ventas</button>
         <button class="nav-btn" data-sec="productos">Productos</button>
+        <button class="nav-btn" data-sec="categorias">Categorías</button>
         <button class="nav-btn" data-sec="cobranzas">Cobranzas</button>
         <button class="nav-btn" data-sec="clientes">Clientes</button>
         <button class="nav-btn" data-sec="graficos">Gráficos</button>
@@ -1041,6 +1042,130 @@
     }};
   }
 
+  // ═══════════════════ CATEGORÍAS (Bijou / Home / Ropa / Otros) ═══════════════════
+  const GRUPOS = [
+    { key: "Bijou", color: "var(--s1)" }, { key: "Home", color: "var(--s2)" },
+    { key: "Ropa", color: "var(--s3)" }, { key: "Otros", color: "var(--s4)" },
+  ];
+  const PALETA = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)", "var(--s5)"];
+  const catUI = { modo: "u12", vista: "pct", ver: "grupos" };
+  let catCache = null;
+
+  function vistaCategorias() {
+    return { sec: "categorias", titulo: "Categorías", render: async el => {
+      cargando(el);
+      const hoy = hoyAR(), kmHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+      if (!catCache) { try { catCache = (await api("/web/categorias")).filas; } catch (e) { return errorEn(el, e); } }
+      const D = {};  // D[km]["grupo|sub"] = {u, f}
+      catCache.forEach(r => { (D[r.mes] ||= {})[r.grupo + "|" + r.sub] = { u: +r.unidades || 0, f: +r.facturado || 0 }; });
+      const anios = [...new Set(Object.keys(D).map(k => k.slice(0, 4)))].sort();
+      const kmMenos = (km, k) => { const [a, mm] = km.split("-").map(Number); const d = new Date(a, mm - 1 - k, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+      const P = catUI.modo === "anual"
+        ? anios.map(a => ({ label: `Año ${a}`, corto: a, meses: Object.keys(D).filter(k => k.startsWith(a)), d: `${a}-01`, h: a === kmHoy.slice(0, 4) ? kmHoy : `${a}-12` }))
+        : (catUI.modo === "u12" ? Array.from({ length: 12 }, (_, i) => kmMenos(kmHoy, 11 - i))
+            : Array.from({ length: 12 }, (_, i) => `${catUI.modo}-${String(i + 1).padStart(2, "0")}`).filter(k => k <= kmHoy))
+          .map(k => ({ label: mesLabel(k) + (k === kmHoy ? " (en curso)" : ""), corto: MESES[+k.slice(5) - 1] + (catUI.modo === "u12" ? " " + k.slice(2, 4) : ""), meses: [k], d: k, h: k }));
+      const mesesTodos = P.flatMap(p => p.meses);
+      const suma = (meses, filtro, campo = "f") => meses.reduce((a, k) => a + Object.entries(D[k] || {}).reduce((b, [gs, x]) => b + (filtro(gs) ? x[campo] : 0), 0), 0);
+      const total = suma(mesesTodos, () => true);
+      const totG = g => suma(mesesTodos, gs => gs.startsWith(g + "|"));
+
+      // Subcategorías del período (para la tabla y para las series cuando se mira un grupo)
+      const subs = {};
+      mesesTodos.forEach(k => Object.entries(D[k] || {}).forEach(([gs, x]) => { const s = (subs[gs] ||= { u: 0, f: 0 }); s.u += x.u; s.f += x.f; }));
+      let series, valor;
+      if (catUI.ver === "grupos") {
+        series = GRUPOS;
+        valor = (pi, g) => suma(P[pi].meses, gs => gs.startsWith(g + "|"));
+      } else {
+        const top = Object.entries(subs).filter(([gs]) => gs.startsWith(catUI.ver + "|")).sort((a, b) => b[1].f - a[1].f).map(([gs]) => gs);
+        const prin = top.slice(0, 4);
+        series = prin.map((gs, i) => ({ key: gs, label: gs.split("|")[1], color: PALETA[i] }));
+        if (top.length > 4) series.push({ key: "resto", label: "Resto", color: PALETA[4] });
+        valor = (pi, k) => k === "resto"
+          ? suma(P[pi].meses, gs => gs.startsWith(catUI.ver + "|") && !prin.includes(gs))
+          : suma(P[pi].meses, gs => gs === k);
+      }
+      const nombreModo = catUI.modo === "u12" ? "últimos 12 meses" : catUI.modo === "anual" ? "toda la historia" : catUI.modo;
+
+      el.innerHTML = `
+        <div class="page-title">Categorías</div>
+        <div class="page-sub">Qué tipo de productos se venden: bijou, home (cerámica, altares, sahumar, aromas…), ropa y otros. Se clasifica por el nombre del producto, así que incluye productos que ya no están en la tienda. Importes a precio de lista (antes de descuentos).</div>
+        <div class="toolbar">
+          <button class="chip${catUI.modo === "u12" ? " active" : ""}" data-m="u12">Últimos 12 meses</button>
+          ${anios.map(a => `<button class="chip${catUI.modo === a ? " active" : ""}" data-m="${a}">${a}</button>`).join("")}
+          <button class="chip${catUI.modo === "anual" ? " active" : ""}" data-m="anual">Por año</button>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><div class="kpi-l">Facturado · ${esc(nombreModo)}</div><div class="kpi-v">${money(total)}</div></div>
+          ${GRUPOS.filter(g => totG(g.key)).map(g => `<div class="kpi"><div class="kpi-l"><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${g.color};margin-right:6px"></i>${esc(g.key)}</div><div class="kpi-v">${pct(total ? totG(g.key) / total : 0)}</div><div class="count">${money(totG(g.key))}</div></div>`).join("")}
+        </div>
+        <div class="card">
+          <div class="chart-head"><h3>${catUI.ver === "grupos" ? "Facturado por grupo" : "Subcategorías de " + esc(catUI.ver)}</h3>
+            <div class="seg-toggle">${["grupos", "Bijou", "Home", "Ropa"].map(v => `<button data-ver="${v}" class="${catUI.ver === v ? "on" : ""}">${v === "grupos" ? "Grupos" : v}</button>`).join("")}</div>
+            <span class="spacer"></span>${leyenda(series)}
+            <div class="seg-toggle"><button data-v="abs" class="${catUI.vista === "abs" ? "on" : ""}">$</button><button data-v="pct" class="${catUI.vista === "pct" ? "on" : ""}">% del total</button></div></div>
+          <div class="chart" data-r="barras"></div>
+        </div>
+        <div class="card"><h3>Subcategorías · ${esc(nombreModo)}</h3><div data-r="tabla"></div></div>`;
+
+      const dibujar = () => graficoApilado(el.querySelector('[data-r="barras"]'), {
+        cats: P, series, valor, pct: catUI.vista === "pct", fmtY: moneyK, fmtV: money,
+        onClick: (pi, k) => { if (k && k.includes("|")) abrir(vistaCategoria(k.split("|")[1], P[pi].d, P[pi].h)); },
+      });
+      dibujar();
+      alRedimensionar = dibujar;
+
+      const totPorGrupo = {};
+      Object.entries(subs).forEach(([gs, x]) => { const g = gs.split("|")[0]; totPorGrupo[g] = (totPorGrupo[g] || 0) + x.f; });
+      const filas = Object.entries(subs).map(([gs, x]) => {
+        const [grupo, sub] = gs.split("|");
+        return { grupo, sub, facturado: x.f, unidades: x.u, p_total: total ? x.f / total : 0, p_grupo: totPorGrupo[grupo] ? x.f / totPorGrupo[grupo] : 0, precio_prom: x.u ? x.f / x.u : null };
+      });
+      tabla(el.querySelector('[data-r="tabla"]'), {
+        columnas: [
+          { key: "grupo", label: "Grupo", tipo: "texto", filtro: true },
+          { key: "sub", label: "Subcategoría", tipo: "texto" },
+          { key: "facturado", label: "Facturado", tipo: "money" },
+          { key: "p_total", label: "% del total", tipo: "pct" },
+          { key: "p_grupo", label: "% del grupo", tipo: "pct" },
+          { key: "unidades", label: "Unidades", tipo: "int" },
+          { key: "precio_prom", label: "Precio prom.", tipo: "money", sumar: false },
+        ],
+        filas, ordenInicial: "facturado", exportar: `Categorías ${nombreModo}`,
+        onRow: r => abrir(vistaCategoria(r.sub, P[0].d, P[P.length - 1].h)),
+      });
+
+      el.querySelectorAll("[data-m]").forEach(b => b.addEventListener("click", () => { catUI.modo = b.dataset.m; render(); }));
+      el.querySelectorAll("[data-v]").forEach(b => b.addEventListener("click", () => { catUI.vista = b.dataset.v; render(); }));
+      el.querySelectorAll("[data-ver]").forEach(b => b.addEventListener("click", () => { catUI.ver = b.dataset.ver; render(); }));
+    }};
+  }
+
+  function vistaCategoria(sub, dKm, hKm) {
+    return { titulo: sub, render: el => {
+      const rango = { desde: `${dKm}-01`, hasta: finDeMes(hKm) };
+      el.innerHTML = `<div class="page-title">${esc(sub)}</div><div class="page-sub">Productos de esta subcategoría. Tocá uno para ver variantes, evolución y órdenes.</div>
+        <div data-r="rango"></div><div data-r="tabla"></div>`;
+      const cargar = async () => {
+        const $t = el.querySelector('[data-r="tabla"]'); cargando($t);
+        try {
+          const j = await api(`/web/categorias?sub=${encodeURIComponent(sub)}&desde=${rango.desde}&hasta=${rango.hasta}`);
+          tabla($t, { columnas: [
+              { key: "producto", label: "Producto", tipo: "texto", wrap: true },
+              { key: "unidades", label: "Unidades", tipo: "int" },
+              { key: "facturado", label: "Facturado", tipo: "money" },
+              { key: "ordenes", label: "Órdenes", tipo: "int" },
+              { key: "ultima_venta", label: "Última venta", tipo: "fecha" },
+            ], filas: j.filas, ordenInicial: "facturado", exportar: `${sub} ${rango.desde} a ${rango.hasta}`,
+            onRow: r => abrir(vistaProducto(r.producto_id, r.producto)) });
+        } catch (e) { errorEn($t, e); }
+      };
+      selectorRango(el.querySelector('[data-r="rango"]'), rango, cargar);
+      cargar();
+    }};
+  }
+
   // ═══════════════════ GRÁFICOS (análisis) ═══════════════════
   // "Ver datos": la tabla con los mismos números de cada gráfico (accesibilidad / modo claro)
   function verDatos(cols, filas) {
@@ -1293,7 +1418,7 @@
   const SER_ENV = [{ key: "env_correo", label: "Correo Arg.", color: "var(--s1)" }, { key: "env_andreani", label: "Andreani", color: "var(--s2)" },
                    { key: "env_moto", label: "Moto", color: "var(--s3)" }, { key: "env_otro", label: "Otro / retiro", color: "var(--s4)" }];
 
-  const SECCIONES = { resultados: vistaResultados, ventas: () => vistaVentas(), productos: vistaProductos, cobranzas: vistaCobranzas, clientes: vistaClientes, graficos: vistaGraficos };
+  const SECCIONES = { resultados: vistaResultados, ventas: () => vistaVentas(), productos: vistaProductos, categorias: vistaCategorias, cobranzas: vistaCobranzas, clientes: vistaClientes, graficos: vistaGraficos };
 
   // ═══════════════════ login / arranque ═══════════════════
   function pantallaLogin(msg = "") {
